@@ -1,0 +1,9 @@
+node_modules/
+frontend/node_modules/
+backend/node_modules/
+frontend/dist/
+.env
+.env.example
+.DS_Store
+npm-debug.log*
+PRD_VAYTES_Competition_Timer.md
