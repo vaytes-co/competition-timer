@@ -25,6 +25,7 @@ test("rooms hash passwords, authorize the owner Controller, and permit Displays"
   const joined = await manager.join({ code: room.code, password: "pass1234", role: "DISPLAY" }, "display");
   assert.equal(joined.room.members.displaysOnline, 1);
   assert.throws(() => manager.command("display", { type: "set-view", view: "BACKDROP" }), /Only/);
+  assert.throws(() => manager.command("display", { type: "retry-video" }), /Only/);
   manager.leave("display");
   assert.equal(manager.snapshot(room).members.displaysOnline, 0);
 });

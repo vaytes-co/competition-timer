@@ -7,7 +7,7 @@ VAYTES is a self-hosted event timer: a phone operates a protected Room, while la
 - Password-protected Room creation/joining, six-character unambiguous codes, hashed passwords, random resumable sessions, owner-only Controller authorization, and multiple Displays.
 - Socket.IO Room state snapshots, reconnect recovery, ordered revisions, acknowledgements, member counts, input checks, and server-side command authorization.
 - Server-authoritative timer for Mosaic (20m), FWM (20m), FWP (60m), Mechanic Engineering (60m), and Programming (120m). Start, pause, resume, reset, finish, and guarded level switching are implemented.
-- Separate mobile-first Controller and presentation-only Display. The Display loops the supplied full-screen video in backdrop mode; timer mode uses a white background with black digits and the competition title. It includes a fullscreen control and no timer controls.
+- Separate mobile-first Controller and presentation-only Display. The Display loops supplied full-screen videos in backdrop, timer, and selected-video modes. Timer content appears over the timer background video, with an animated seconds-only countdown during the final minute. The Controller can remotely retry video playback on connected Displays.
 - A persistent Display audio element with a visible tap-to-enable prompt, playback retry feedback, mute and volume synchronization, and track-load handling.
 - Memory-only Room storage with a 24-hour default expiry. Room passwords use bcrypt hashes; session tokens are stored server-side as SHA-256 hashes.
 
@@ -49,7 +49,7 @@ Set `FRONTEND_ORIGINS` to the exact HTTPS frontend origin(s) in production, and 
 
 ## Video and audio assets
 
-The backdrop video at `frontend/public/assets/video/backdrop.MP4` is played muted, inline, and on a loop behind the Display labels. Replace that file to customize the backdrop; retain its name or update the video source in `frontend/src/App.jsx`. If the file cannot load, the animated CSS backdrop appears instead.
+The backdrop video at `frontend/public/assets/video/backdrop.MP4` is played muted, inline, and on a loop. Timer screens show `frontend/public/assets/video/background.mp4` directly behind the timer. If a video cannot load, the Display offers a local retry; the Controller's **Display videos** section also has a remote retry control for connected Displays. The Controller can play `break.mp4`, `closing.mp4`, and the supplied grading/scoring clips for Mosaic & FWM, FWP, Mechanic, and Programming. Video playback is muted and loops until another display view is selected.
 
 `frontend/public/assets/audio/track-01.mp3` is supplied and used by the Display. The browser requires a user gesture to allow audible playback; tap the visible prompt on the Display when entering the Room. The Controller's audio panel controls mute/volume. The Display itself has no navigation or footer; press `F` to toggle fullscreen.
 
@@ -82,7 +82,7 @@ frontend/
   src/App.jsx         Landing, Room forms, Controller, Display, audio engine
   src/styles.css      Responsive controller and large-screen presentation
   public/assets/audio/  Supplied track and optional licensed playlist tracks
-  public/assets/video/backdrop.MP4  Looping Display backdrop video
+  public/assets/video/               Backdrop, timer background, and event clips
 PRD_VAYTES_Competition_Timer.md
 referensi-desain.jpg
 ```

@@ -15,6 +15,19 @@ const LEVELS = [
   { id: "mechanic-engineering", title: "Mechanic Engineering", details: "Mechanic Engineering", duration: "60 MIN", hue: "lilac" },
   { id: "programming", title: "Programming", details: "Programming", duration: "120 MIN", hue: "orange" }
 ];
+const VIDEO_ASSET_BASE = `${import.meta.env.BASE_URL}assets/video/`;
+const TIMER_BACKGROUND_VIDEO = `${VIDEO_ASSET_BASE}background.mp4`;
+const DISPLAY_VIDEOS = [
+  { id: "break", title: "Break" },
+  { id: "closing", title: "Closing" },
+  { id: "fwp-grading", title: "FWP Grading" },
+  { id: "fwp-scoring", title: "FWP Scoring" },
+  { id: "mechanic-grading", title: "Mechanic Grading" },
+  { id: "mechanic-scoring", title: "Mechanic Scoring" },
+  { id: "mosaic-&-fwm-grading", title: "Mosaic & FWM Grading" },
+  { id: "programming-grading", title: "Programming Grading" },
+  { id: "programming-scoring", title: "Programming Scoring" }
+].map((video) => ({ ...video, src: `${VIDEO_ASSET_BASE}${video.id}.mp4` }));
 const TRACKS = [
   { id: "track-01", src: "/assets/audio/track-01.mp3", title: "Track 01" }
 ];
@@ -69,6 +82,12 @@ function FlipUnit({ value, label }) {
       <span className="flip-card-value" aria-hidden="true">{displayValue}</span>
       {flippingValue !== null && <span className="flip-page" aria-hidden="true">{flippingValue}</span>}
     </div>
+  </div>;
+}
+
+function FinalMinuteCountdown({ seconds }) {
+  return <div className="final-minute-countdown" role="timer" aria-label={`${seconds} seconds remaining`}>
+    <span key={seconds} className="final-minute-number">{String(seconds).padStart(2, "0")}</span>
   </div>;
 }
 
@@ -346,7 +365,7 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
     <div className="controller-main">
       <section className="controller-title-row"><div><span className="eyebrow"><span className="live-dot" /> EVENT CONTROL / 01</span><h1>Good to go<span>.</span></h1><p>Your room is ready. Set the pace.</p></div><div className="device-count"><div className="device-count-icon"><MonitorPlay size={19} /></div><div><b>{room.members?.displaysOnline || 0}</b><span>DISPLAY{room.members?.displaysOnline === 1 ? "" : "S"} ONLINE</span></div><span className={`device-status ${room.members?.displaysOnline ? "active" : ""}`}>{room.members?.displaysOnline ? "CONNECTED" : "WAITING"}</span></div></section>
       <section className="control-section">
-        <div className="section-heading"><span className="section-index">01</span><div><h2>Choose your stage</h2><p>Switch the big screen between backdrop and competition levels.</p></div></div>
+        <div className="section-heading"><span className="section-index">01</span><div><h2>Choose your stage</h2><p>Switch the big screen between backdrop, videos, and competition levels.</p></div></div>
         <div className="level-grid">
           <button className={`level-card backdrop-card ${room.state.activeView === "BACKDROP" ? "level-selected" : ""}`} onClick={() => command("display:set-view", { view: "BACKDROP" })}>
             <span className="level-number">00</span><span className="level-card-time">EVENT MODE</span><strong>Backdrop</strong><span className="level-details">Animated event screen</span><span className="level-arrow"><Sparkles size={16} /></span>
@@ -358,9 +377,25 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
           {LEVELS.filter((level) => !["mosaic", "fwm"].includes(level.id)).map((level, index) => <LevelCard key={level.id} level={level} number={String(index + 3).padStart(2, "0")} selected={room.state.activeLevel === level.id && room.state.activeView === "TIMER"} onClick={() => selectLevel(level)} />)}
         </div>
       </section>
+      <section className="control-section video-control-section">
+        <div className="section-heading"><span className="section-index">02</span><div><h2>Display videos</h2><p>Choose a clip to play on every connected Display.</p></div></div>
+        <div className="video-grid">
+          {DISPLAY_VIDEOS.map((video) => <button
+            key={video.id}
+            className={`video-card ${room.state.activeView === "VIDEO" && room.state.activeVideo === video.id ? "video-selected" : ""}`}
+            aria-pressed={room.state.activeView === "VIDEO" && room.state.activeVideo === video.id}
+            onClick={() => command("display:set-video", { videoId: video.id })}
+          >
+            <MonitorPlay size={16} /><span>{video.title}</span><Play size={14} className="video-card-play" />
+          </button>)}
+        </div>
+        <button className="control-button display-button retry-display-button" disabled={!room.members?.displaysOnline} onClick={() => command("display:retry-video")}>
+          <RotateCcw size={16} /> Retry video on Displays
+        </button>
+      </section>
       <section className="dashboard-lower">
         <div className="timer-panel">
-          <div className="panel-title"><span className="section-index">02</span><div><h2>Competition clock</h2><p>{activeLevel ? activeLevel.details : "Pick a level to set the clock."}</p></div><span className={`timer-status status-${displayedStatus.toLowerCase()}`}>{displayedStatus}</span></div>
+          <div className="panel-title"><span className="section-index">03</span><div><h2>Competition clock</h2><p>{activeLevel ? activeLevel.details : "Pick a level to set the clock."}</p></div><span className={`timer-status status-${displayedStatus.toLowerCase()}`}>{displayedStatus}</span></div>
           <div className="timer-readout" aria-label={`Time remaining ${currentTimerText}`} data-tick={tick}>{currentTimerText}</div>
           <div className="timer-progress"><span style={{ width: timer.durationMs ? `${Math.max(0, Math.min(100, remainingMs / timer.durationMs * 100))}%` : "0%" }} /></div>
           <div className="timer-actions">
@@ -372,7 +407,7 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
           </div>
         </div>
         <div className="audio-panel">
-          <div className="panel-title"><span className="section-index">03</span><div><h2>Room audio</h2><p>Plays from the Display device only.</p></div><span className="audio-wave"><AudioLines size={17} /></span></div>
+          <div className="panel-title"><span className="section-index">04</span><div><h2>Room audio</h2><p>Plays from the Display device only.</p></div><span className="audio-wave"><AudioLines size={17} /></span></div>
           <div className="audio-control-row"><div className="audio-icon"><Headphones size={20} /></div><div className="audio-copy"><b>Background music</b><span>{room.state.audio.muted ? "Muted on Display" : "Volume controlled on Display"}</span></div><button className={`toggle-switch ${room.state.audio.muted ? "" : "toggle-on"}`} aria-label={room.state.audio.muted ? "Unmute audio" : "Mute audio"} onClick={toggleAudio}><span /></button></div>
           <label className="volume-row"><VolumeX size={16} /><input type="range" min="0" max="1" step="0.01" value={displayVolume} aria-label="Display volume" onChange={(event) => setDisplayVolume(Number(event.target.value))} onPointerUp={() => command("audio:set-volume", { volume: displayVolume })} onKeyUp={() => command("audio:set-volume", { volume: displayVolume })} /><Volume2 size={17} /><span>{Math.round(displayVolume * 100)}%</span></label>
           <div className="audio-footnote"><span className="audio-note-dot" /> Tap the Display once to enable audio. Press F for fullscreen.</div>
@@ -492,17 +527,34 @@ function Display({ room, clockOffset, socket }) {
   const audioEngineRef = useRef(null);
   const [audioStatus, setAudioStatus] = useState("prompt");
   const [clientNow, setClientNow] = useState(Date.now());
+  const [videoError, setVideoError] = useState(false);
+  const [videoRetry, setVideoRetry] = useState(0);
   const level = LEVELS.find((item) => item.id === room.state.activeLevel);
-  const isBackdrop = room.state.activeView === "BACKDROP" || !level;
+  const isVideo = room.state.activeView === "VIDEO";
+  const isBackdrop = room.state.activeView === "BACKDROP" || (!isVideo && !level);
+  const activeVideo = DISPLAY_VIDEOS.find((video) => video.id === room.state.activeVideo);
+  const missingVideo = isVideo && !activeVideo;
+  const requestedVideoSource = isBackdrop ? `${VIDEO_ASSET_BASE}backdrop.MP4` :
+    isVideo ? activeVideo?.src : TIMER_BACKGROUND_VIDEO;
+  const selectedVideoError = missingVideo || (isVideo && videoError);
+  const videoSource = selectedVideoError ? TIMER_BACKGROUND_VIDEO : requestedVideoSource || TIMER_BACKGROUND_VIDEO;
   const remaining = remainingAt(room.state.timer, clockOffset, clientNow);
   const finished = room.state.timer.status === "FINISHED" || (room.state.timer.status === "RUNNING" && remaining <= 0);
+  const lastMinute = !finished && remaining > 0 && remaining <= 60_000;
+  const lastMinuteSeconds = Math.ceil(remaining / 1000);
   const timerParts = formatTime(remaining).split(":");
-  const displayTitle = ["mosaic", "fwm"].includes(level?.id) ? "Mosaic & FWM" : level?.title;
+  const displayTitle = level?.id === "fwp" ? "Fun With Programming" :
+    ["mosaic", "fwm"].includes(level?.id) ? "Mosaic & FWM" : level?.title;
+  const displaySubtitle = ["fwp", "mechanic-engineering", "programming"].includes(level?.id)
+    ? "Building and test track"
+    : null;
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setClientNow(Date.now()), 250);
     return () => window.clearInterval(intervalId);
   }, []);
+
+  useEffect(() => setVideoError(false), [requestedVideoSource, room.state.displayVideoRetry]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -517,26 +569,42 @@ function Display({ room, clockOffset, socket }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  return <main className={`display-stage ${isBackdrop ? "display-backdrop-mode" : "display-timer-mode"} ${finished ? "display-finished" : ""}`}>
+  return <main className={`display-stage ${isBackdrop ? "display-backdrop-mode" : isVideo ? "display-video-mode" : "display-timer-mode"} ${finished ? "display-finished" : ""}`}>
     <video
+      key={`${videoSource}-${videoRetry}-${room.state.displayVideoRetry}`}
       className="backdrop-video"
-      src="/assets/video/backdrop.MP4"
+      src={videoSource}
       autoPlay
       loop
       muted
       playsInline
       preload="auto"
       aria-hidden="true"
+      onError={() => setVideoError(true)}
     />
-    {isBackdrop ? null : <section className="timer-scene">
-      <h1 className="timer-level-title">{displayTitle}</h1>
-      <div className={`flip-clock ${finished ? "clock-finished" : ""}`} role="timer" aria-label={`Time remaining ${formatTime(remaining)}`}>
-        <FlipUnit value={timerParts[0]} label="Hours" />
-        <span className="flip-clock-separator" aria-hidden="true">:</span>
-        <FlipUnit value={timerParts[1]} label="Minutes" />
-        <span className="flip-clock-separator" aria-hidden="true">:</span>
-        <FlipUnit value={timerParts[2]} label="Seconds" />
-      </div>
+    {(selectedVideoError || videoError) && <div className="display-video-error" role="alert">
+      <span>{selectedVideoError
+        ? "Unable to load the selected Display video. Showing the timer background instead."
+        : "Unable to load the video background."}</span>
+      {!missingVideo && <button type="button" onClick={() => {
+        setVideoError(false);
+        setVideoRetry((attempt) => attempt + 1);
+      }}>Retry</button>}
+    </div>}
+    {isBackdrop || isVideo ? null : <section className={`timer-scene ${lastMinute ? "timer-scene-final-minute" : ""}`}>
+      {lastMinute
+        ? <FinalMinuteCountdown seconds={lastMinuteSeconds} />
+        : <>
+          <h1 className="timer-level-title">{displayTitle}</h1>
+          {displaySubtitle && <p className="timer-level-subtitle">{displaySubtitle}</p>}
+          <div className={`flip-clock ${finished ? "clock-finished" : ""}`} role="timer" aria-label={`Time remaining ${formatTime(remaining)}`}>
+          <FlipUnit value={timerParts[0]} label="Hours" />
+          <span className="flip-clock-separator" aria-hidden="true">:</span>
+          <FlipUnit value={timerParts[1]} label="Minutes" />
+          <span className="flip-clock-separator" aria-hidden="true">:</span>
+          <FlipUnit value={timerParts[2]} label="Seconds" />
+          </div>
+        </>}
     </section>}
     <AudioEngine ref={audioEngineRef} socket={socket} audioState={room.state.audio} onStatus={setAudioStatus} />
     {audioStatus !== "playing" && <button className="display-audio-prompt" onClick={() => audioEngineRef.current?.activate()}>
@@ -560,7 +628,9 @@ export default function App() {
   if (state.room && state.role === "CONTROLLER") return <Controller room={state.room} connected={state.connected} clockOffset={state.clockOffset} emit={state.emit} onLeave={state.leaveRoom} onClose={async () => { const result = await state.emit("room:close"); if (!result.ok) state.setError(result.error); }} />;
   if (state.room && state.role === "DISPLAY") return <Display room={state.room} clockOffset={state.clockOffset} socket={state.socket} />;
 
-  return page === "home" ?
-    <Landing connected={state.connected} error={state.error} clearError={() => state.setError("")} onCreate={() => { state.setError(""); setPage("create"); }} onJoin={() => { state.setError(""); setPage("join"); }} /> :
-    <RoomForm mode={page} connected={state.connected} error={state.error} onBack={() => { state.setError(""); setPage("home"); }} onCreate={state.createRoom} onJoin={state.joinRoom} />;
+  return <div key={page} className="page-transition">
+    {page === "home" ?
+      <Landing connected={state.connected} error={state.error} clearError={() => state.setError("")} onCreate={() => { state.setError(""); setPage("create"); }} onJoin={() => { state.setError(""); setPage("join"); }} /> :
+      <RoomForm mode={page} connected={state.connected} error={state.error} onBack={() => { state.setError(""); setPage("home"); }} onCreate={state.createRoom} onJoin={state.joinRoom} />}
+  </div>;
 }

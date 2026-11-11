@@ -139,6 +139,8 @@ io.on("connection", (socket) => {
   });
 
   socket.on("display:set-view", runCommand("set-view"));
+  socket.on("display:set-video", runCommand("set-video"));
+  socket.on("display:retry-video", runCommand("retry-video"));
   socket.on("timer:select-level", runCommand("select-level"));
   socket.on("timer:start", runCommand("start"));
   socket.on("timer:pause", runCommand("pause"));

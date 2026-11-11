@@ -5,6 +5,17 @@ export const LEVELS = Object.freeze([
   { id: "mechanic-engineering", name: "Mechanic Engineering", subtitle: "Mechanic Engineering", durationMs: 60 * 60_000 },
   { id: "programming", name: "Programming", subtitle: "Programming", durationMs: 120 * 60_000 }
 ]);
+export const DISPLAY_VIDEO_IDS = Object.freeze([
+  "break",
+  "closing",
+  "fwp-grading",
+  "fwp-scoring",
+  "mechanic-grading",
+  "mechanic-scoring",
+  "mosaic-&-fwm-grading",
+  "programming-grading",
+  "programming-scoring"
+]);
 
 export class TimerCommandError extends Error {}
 
@@ -20,6 +31,8 @@ export function remainingTime(timer, now = Date.now()) {
 export function createInitialState(now = Date.now()) {
   return {
     activeView: "BACKDROP",
+    activeVideo: null,
+    displayVideoRetry: 0,
     activeLevel: null,
     timer: { status: "READY", durationMs: 0, remainingMs: 0, startedAt: null },
     audio: { muted: false, volume: 0.35 },
@@ -53,6 +66,14 @@ export function applyCommand(state, command, now = Date.now()) {
       if (!["BACKDROP", "TIMER"].includes(command.view)) rejectCommand("Invalid display view.");
       if (command.view === "TIMER" && !state.activeLevel) rejectCommand("Select a level before showing the timer.");
       next.activeView = command.view;
+      break;
+    case "set-video":
+      if (!DISPLAY_VIDEO_IDS.includes(command.videoId)) rejectCommand("Unknown display video.");
+      next.activeVideo = command.videoId;
+      next.activeView = "VIDEO";
+      break;
+    case "retry-video":
+      next.displayVideoRetry += 1;
       break;
     case "start":
       if (state.timer.status !== "READY" || !state.activeLevel) rejectCommand("The timer is not ready to start.");

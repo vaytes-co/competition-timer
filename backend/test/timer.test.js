@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyCommand, createInitialState, finishTimer, LEVELS, publicState, remainingTime } from "../src/timer.js";
+import { applyCommand, createInitialState, DISPLAY_VIDEO_IDS, finishTimer, LEVELS, publicState, remainingTime } from "../src/timer.js";
 
 test("defines all five levels with the required default durations", () => {
   assert.deepEqual(LEVELS.map(({ id, durationMs }) => [id, durationMs / 60_000]), [
@@ -42,6 +42,24 @@ test("rejects invalid transitions, levels, and stale level replacement", () => {
   let state = applyCommand(initial, { type: "select-level", levelId: "programming" }, 0);
   state = applyCommand(state, { type: "start" }, 10);
   assert.throws(() => applyCommand(state, { type: "select-level", levelId: "mosaic" }, 20), /Confirm/);
+});
+
+test("selecting a display video changes the view without changing the timer", () => {
+  const initial = createInitialState(0);
+  const selected = applyCommand(initial, { type: "set-video", videoId: "break" }, 1);
+  assert.equal(selected.activeView, "VIDEO");
+  assert.equal(selected.activeVideo, "break");
+  assert.deepEqual(selected.timer, initial.timer);
+  assert.throws(() => applyCommand(initial, { type: "set-video", videoId: "missing" }, 2), /Unknown display video/);
+  assert.ok(DISPLAY_VIDEO_IDS.includes("mosaic-&-fwm-grading"));
+});
+
+test("retrying a display video increments the synchronized retry revision", () => {
+  const initial = createInitialState(0);
+  const retried = applyCommand(initial, { type: "retry-video" }, 1);
+  assert.equal(retried.displayVideoRetry, initial.displayVideoRetry + 1);
+  assert.equal(retried.updatedAt, 1);
+  assert.equal(retried.revision, initial.revision + 1);
 });
 
 test("public snapshots interpolate running timers and mark elapsed timers finished", () => {
