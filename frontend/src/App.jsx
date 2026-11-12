@@ -520,7 +520,7 @@ const AudioEngine = forwardRef(function AudioEngine({ socket, audioState, onStat
     };
   }, [onStatus, socket]);
 
-  return <audio ref={audioRef} preload="auto" />;
+  return <audio ref={audioRef} preload="none" />;
 });
 
 function Display({ room, clockOffset, socket }) {
@@ -578,7 +578,7 @@ function Display({ room, clockOffset, socket }) {
       loop
       muted
       playsInline
-      preload="auto"
+      preload="metadata"
       aria-hidden="true"
       onError={() => setVideoError(true)}
     />
