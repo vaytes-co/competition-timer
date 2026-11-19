@@ -458,7 +458,7 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
         </div>
       </section>
     </div>
-    <footer className="controller-footer"><span><Wifi size={14} /> ALL DISPLAYS SYNCED IN REAL TIME</span><button onClick={() => window.confirm("Close this Room for all connected devices?") && onClose()}>CLOSE ROOM</button><button onClick={() => window.confirm("Leave this room?") && onLeave()}>LEAVE ROOM</button><Brand compact /></footer>
+    <footer className="controller-footer"><button onClick={() => window.confirm("Close this Room for all connected devices?") && onClose()}>CLOSE ROOM</button><button onClick={() => window.confirm("Leave this room?") && onLeave()}>LEAVE ROOM</button><Brand compact /></footer>
     {notice && <ToastMessage message={notice} onClose={() => setNotice("")} />}
   </main>;
 }
