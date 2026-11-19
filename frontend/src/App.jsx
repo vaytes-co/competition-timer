@@ -9,11 +9,12 @@ import {
 
 const API_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.DEV ? "http://localhost:3001" : window.location.origin);
 const LEVELS = [
-  { id: "mosaic", title: "Mosaic", details: "Mosaic", duration: "20 MIN", hue: "orange" },
-  { id: "fwm", title: "FWM", details: "Fun With Machine", duration: "20 MIN", hue: "blue" },
-  { id: "fwp", title: "FWP", details: "Fun With Programming", duration: "60 MIN", hue: "yellow" },
-  { id: "mechanic-engineering", title: "Mechanic Engineering", details: "Mechanic Engineering", duration: "60 MIN", hue: "lilac" },
-  { id: "programming", title: "Programming", details: "Programming", duration: "120 MIN", hue: "orange" }
+  { id: "mosaic-1d-2d", title: "Mosaic 1D & 2D", details: "Building", duration: "20 MIN", hue: "orange" },
+  { id: "mosaic-3d", title: "Mosaic 3D", details: "Building", duration: "40 MIN", hue: "blue" },
+  { id: "fwm", title: "Fun With Machine", details: "Building", duration: "20 MIN", hue: "yellow" },
+  { id: "fwp", title: "Fun With Programming", details: "Building and test track", duration: "60 MIN", hue: "lilac" },
+  { id: "mechanic-engineering", title: "Mechanic Engineering", details: "Building and test track", duration: "60 MIN", hue: "orange" },
+  { id: "programming", title: "Programming", details: "Building and test track", duration: "120 MIN", hue: "blue" }
 ];
 const VIDEO_ASSET_BASE = `${import.meta.env.BASE_URL}assets/video/`;
 const TIMER_BACKGROUND_VIDEO = `${VIDEO_ASSET_BASE}background.mp4`;
@@ -53,10 +54,32 @@ function formatTime(milliseconds = 0) {
   return `${hours}:${minutes}:${seconds}`;
 }
 
+function formatDisplayTime(milliseconds = 0) {
+  const total = Math.max(0, Math.floor(milliseconds / 1000));
+  const seconds = String(total % 60).padStart(2, "0");
+  if (total >= 3600) return `${Math.floor(total / 3600)}:${String(Math.floor((total % 3600) / 60)).padStart(2, "0")}:${seconds}`;
+  return `${String(Math.floor(total / 60)).padStart(2, "0")}:${seconds}`;
+}
+
+function formatCountdownSeconds(milliseconds) {
+  const seconds = Math.ceil(Math.max(0, milliseconds) / 1000);
+  return seconds < 10 ? String(seconds) : String(seconds).padStart(2, "0");
+}
+
 function remainingAt(timer, clockOffset = 0, clientNow = Date.now()) {
   if (!timer) return 0;
   if (timer.status !== "RUNNING" || timer.startedAt === null) return timer.remainingMs;
   return Math.max(0, timer.remainingMs - (clientNow + clockOffset - timer.startedAt));
+}
+
+function completionMessage(level) {
+  const phase = level.details === "Building" ? "building" : "building and testing";
+  return `${level.title} has finished its ${phase} phase.`;
+}
+
+function completionPhaseLabel(level) {
+  const phase = level.details === "Building" ? "Building" : "Building and testing";
+  return `${phase} phase complete.`;
 }
 
 function FlipUnit({ value, label }) {
@@ -87,7 +110,7 @@ function FlipUnit({ value, label }) {
 
 function FinalMinuteCountdown({ seconds }) {
   return <div className="final-minute-countdown" role="timer" aria-label={`${seconds} seconds remaining`}>
-    <span key={seconds} className="final-minute-number">{String(seconds).padStart(2, "0")}</span>
+    <span key={seconds} className="final-minute-number">{seconds}</span>
   </div>;
 }
 
@@ -226,7 +249,7 @@ function Landing({ connected, error, onCreate, onJoin, clearError }) {
           <div className="scribble-arrow"><ArrowDownRight size={35} strokeWidth={1.5} /></div>
           <span>BUILT FOR THE BIG MOMENTS<br />AND EVERY SECOND IN BETWEEN.</span>
         </div>
-        <div className="hero-index">01 — 05 <span>● ● ● ● ●</span></div>
+        <div className="hero-index">01 — 06 <span>● ● ● ● ● ●</span></div>
       </div>
       <div className="hero-art">
         <div className="paper-grid" />
@@ -236,7 +259,7 @@ function Landing({ connected, error, onCreate, onJoin, clearError }) {
         <div className="timer-poster">
           <span className="poster-label">LIVE · ROUND ONE</span>
           <div className="poster-time">00<span>:</span>20<span>:</span>00</div>
-          <div className="poster-line"><span /> FIVE LEVELS. ONE CONTROL.</div>
+          <div className="poster-line"><span /> SIX LEVELS. ONE CONTROL.</div>
           <div className="poster-sticker">READY<br />WHEN<br />YOU ARE<span>✳</span></div>
           <div className="poster-bottom">VAYTES / EVENT CONTROL / EST. 2025</div>
         </div>
@@ -304,24 +327,40 @@ function ToastMessage({ message, onClose }) {
   return <div className="toast-message" role="status">{message}<button aria-label="Dismiss" onClick={onClose}><X size={15} /></button></div>;
 }
 
-function LevelCard({ level, number, selected, onClick }) {
-  return <button className={`level-card level-${level.hue} ${selected ? "level-selected" : ""}`} onClick={onClick}>
+function LevelCard({ level, number, selected, disabled, onClick }) {
+  return <button className={`level-card level-${level.hue} ${selected ? "level-selected" : ""}`} disabled={disabled} onClick={onClick}>
     <span className="level-number">{number}</span>
     <span className="level-card-time">{level.duration}</span>
     <strong>{level.title}</strong><span className="level-details">{level.details}</span>
-    <span className="level-arrow"><ArrowRight size={16} /></span>
+    <span className="level-arrow">{selected ? <X size={16} /> : <ArrowRight size={16} />}</span>
   </button>;
+}
+
+function TimerPanel({ level, timer, clockOffset, tick, command }) {
+  const remainingMs = remainingAt(timer, clockOffset);
+  const displayedStatus = timer.status === "RUNNING" && remainingMs <= 0 ? "FINISHED" : timer.status;
+  const currentTimerText = formatTime(remainingMs);
+
+  return <section className="timer-panel">
+    <div className="panel-title"><span className="section-index">03</span><div><h2>{level.title}</h2><p>{level.details}</p></div><span className={`timer-status status-${displayedStatus.toLowerCase()}`}>{displayedStatus}</span></div>
+    <div className="timer-readout" aria-label={`${level.title}: time remaining ${currentTimerText}`} data-tick={tick}>{currentTimerText}</div>
+    <div className="timer-progress"><span style={{ width: `${Math.max(0, Math.min(100, remainingMs / timer.durationMs * 100))}%` }} /></div>
+    <div className="timer-actions">
+      {displayedStatus === "RUNNING" ? <button className="control-button pause-button" onClick={() => command("timer:pause", { levelId: level.id })}><Pause size={17} fill="currentColor" /> Pause</button> :
+        displayedStatus === "PAUSED" ? <button className="control-button start-button" onClick={() => command("timer:resume", { levelId: level.id })}><Play size={17} fill="currentColor" /> Resume</button> :
+          <button className="control-button start-button" disabled={displayedStatus === "FINISHED"} onClick={() => command("timer:start", { levelId: level.id })}><Play size={17} fill="currentColor" /> Start timer</button>}
+      <button className="control-button reset-button" disabled={displayedStatus === "READY"} onClick={() => window.confirm(`Reset ${level.title} to its full duration?`) && command("timer:reset", { levelId: level.id })}><RotateCcw size={16} /> Reset</button>
+      <button className="control-button display-button" onClick={() => command("display:set-view", { view: "TIMER" })}><MonitorPlay size={16} /> Show timer</button>
+    </div>
+  </section>;
 }
 
 function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
   const [notice, setNotice] = useState("");
   const [displayVolume, setDisplayVolume] = useState(room.state.audio.volume);
   const [tick, setTick] = useState(0);
-  const activeLevel = LEVELS.find((level) => level.id === room.state.activeLevel);
-  const timer = room.state.timer;
-  const remainingMs = remainingAt(timer, clockOffset);
-  const displayedStatus = timer.status === "RUNNING" && remainingMs <= 0 ? "FINISHED" : timer.status;
-  const currentTimerText = formatTime(remainingMs);
+  const selectedTimers = room.state.timers || [];
+  const selectedLevelIds = new Set(selectedTimers.map((timer) => timer.levelId));
 
   useEffect(() => {
     const interval = window.setInterval(() => setTick((value) => value + 1), 250);
@@ -335,10 +374,15 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
     if (!result.ok) setNotice(result.error);
   }
 
-  async function selectLevel(level) {
+  async function toggleLevel(level) {
+    const timer = selectedTimers.find((item) => item.levelId === level.id);
+    if (!timer) {
+      await command("timer:select-level", { levelId: level.id });
+      return;
+    }
     if (["RUNNING", "PAUSED"].includes(timer.status) &&
-      !window.confirm("Switching levels will replace the current timer. Continue?")) return;
-    await command("timer:select-level", { levelId: level.id, confirm: true });
+      !window.confirm(`Removing ${level.title} will stop its active timer. Continue?`)) return;
+    await command("timer:remove-level", { levelId: level.id, confirm: true });
   }
 
   async function toggleAudio() {
@@ -370,12 +414,16 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
           <button className={`level-card backdrop-card ${room.state.activeView === "BACKDROP" ? "level-selected" : ""}`} onClick={() => command("display:set-view", { view: "BACKDROP" })}>
             <span className="level-number">00</span><span className="level-card-time">EVENT MODE</span><strong>Backdrop</strong><span className="level-details">Animated event screen</span><span className="level-arrow"><Sparkles size={16} /></span>
           </button>
-          <button className={`level-card level-orange ${["mosaic", "fwm"].includes(room.state.activeLevel) && room.state.activeView === "TIMER" ? "level-selected" : ""}`} onClick={() => selectLevel(LEVELS[0])}>
-            <span className="level-number">01–02</span><span className="level-card-time">20 MIN</span><strong>Mosaic &amp; FWM</strong><span className="level-details">Mosaic · Fun With Machine</span>
-            <span className="level-arrow"><ArrowRight size={16} /></span>
-          </button>
-          {LEVELS.filter((level) => !["mosaic", "fwm"].includes(level.id)).map((level, index) => <LevelCard key={level.id} level={level} number={String(index + 3).padStart(2, "0")} selected={room.state.activeLevel === level.id && room.state.activeView === "TIMER"} onClick={() => selectLevel(level)} />)}
+          {LEVELS.map((level, index) => <LevelCard
+            key={level.id}
+            level={level}
+            number={String(index + 1).padStart(2, "0")}
+            selected={selectedLevelIds.has(level.id)}
+            disabled={!selectedLevelIds.has(level.id) && selectedTimers.length >= 2}
+            onClick={() => toggleLevel(level)}
+          />)}
         </div>
+        <p className="level-selection-note">Select up to two levels to run together. Select a chosen level again to remove it.</p>
       </section>
       <section className="control-section video-control-section">
         <div className="section-heading"><span className="section-index">02</span><div><h2>Display videos</h2><p>Choose a clip to play on every connected Display.</p></div></div>
@@ -393,18 +441,14 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
           <RotateCcw size={16} /> Retry video on Displays
         </button>
       </section>
-      <section className="dashboard-lower">
-        <div className="timer-panel">
-          <div className="panel-title"><span className="section-index">03</span><div><h2>Competition clock</h2><p>{activeLevel ? activeLevel.details : "Pick a level to set the clock."}</p></div><span className={`timer-status status-${displayedStatus.toLowerCase()}`}>{displayedStatus}</span></div>
-          <div className="timer-readout" aria-label={`Time remaining ${currentTimerText}`} data-tick={tick}>{currentTimerText}</div>
-          <div className="timer-progress"><span style={{ width: timer.durationMs ? `${Math.max(0, Math.min(100, remainingMs / timer.durationMs * 100))}%` : "0%" }} /></div>
-          <div className="timer-actions">
-            {displayedStatus === "RUNNING" ? <button className="control-button pause-button" onClick={() => command("timer:pause")}><Pause size={17} fill="currentColor" /> Pause</button> :
-              displayedStatus === "PAUSED" ? <button className="control-button start-button" onClick={() => command("timer:resume")}><Play size={17} fill="currentColor" /> Resume</button> :
-                <button className="control-button start-button" disabled={!activeLevel || displayedStatus === "FINISHED"} onClick={() => command("timer:start")}><Play size={17} fill="currentColor" /> Start timer</button>}
-            <button className="control-button reset-button" disabled={!activeLevel || displayedStatus === "READY"} onClick={() => window.confirm("Reset this timer to its full duration?") && command("timer:reset")}><RotateCcw size={16} /> Reset</button>
-            <button className="control-button display-button" disabled={!activeLevel} onClick={() => command("display:set-view", { view: "TIMER" })}><MonitorPlay size={16} /> Show timer</button>
-          </div>
+      <section className={`dashboard-lower ${selectedTimers.length > 1 ? "has-two-timer-panels" : ""}`}>
+        <div className={`timer-panel-list ${selectedTimers.length > 1 ? "has-multiple-timers" : ""}`}>
+          {selectedTimers.length
+            ? selectedTimers.map((timer) => {
+              const level = LEVELS.find((item) => item.id === timer.levelId);
+              return level ? <TimerPanel key={timer.levelId} level={level} timer={timer} clockOffset={clockOffset} tick={tick} command={command} /> : null;
+            })
+            : <section className="timer-panel timer-panel-empty"><div className="panel-title"><span className="section-index">03</span><div><h2>Competition clock</h2><p>Select a level to set its timer.</p></div></div></section>}
         </div>
         <div className="audio-panel">
           <div className="panel-title"><span className="section-index">04</span><div><h2>Room audio</h2><p>Plays from the Display device only.</p></div><span className="audio-wave"><AudioLines size={17} /></span></div>
@@ -523,31 +567,56 @@ const AudioEngine = forwardRef(function AudioEngine({ socket, audioState, onStat
   return <audio ref={audioRef} preload="none" />;
 });
 
+function CircularTimer({ level, remainingMs, timer }) {
+  const circumference = 2 * Math.PI * 44;
+  const completed = timer.status === "FINISHED" || (timer.status === "RUNNING" && remainingMs <= 0);
+  const finalMinute = !completed && remainingMs <= 60_000;
+  const progress = timer.durationMs ? Math.max(0, Math.min(1, remainingMs / timer.durationMs)) : 0;
+  const displayedTime = completed ? "COMPLETE" : finalMinute ? formatCountdownSeconds(remainingMs) : formatDisplayTime(remainingMs);
+  return <article className={`split-timer-card hue-${level.hue} ${completed ? "split-timer-complete" : ""}`} aria-label={`${level.title}, ${completed ? completionPhaseLabel(level) : `${displayedTime} remaining`}`}>
+    <h1 className="split-timer-title">{level.title}</h1>
+    <p className="split-timer-description">{level.details}</p>
+    <div className="circular-timer">
+      <svg viewBox="0 0 100 100" aria-hidden="true">
+        <circle className="timer-ring-track" cx="50" cy="50" r="44" />
+        <circle className="timer-ring-progress" cx="50" cy="50" r="44" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)} />
+      </svg>
+      <span className="circular-timer-value" role="timer">{completed ? "00:00" : displayedTime}</span>
+      {completed && <span className="circular-timer-complete" aria-label="Level complete"><Check size={17} /></span>}
+    </div>
+    {completed && <p className="split-timer-completion" role="status">{completionPhaseLabel(level)}</p>}
+  </article>;
+}
+
 function Display({ room, clockOffset, socket }) {
   const audioEngineRef = useRef(null);
   const [audioStatus, setAudioStatus] = useState("prompt");
   const [clientNow, setClientNow] = useState(Date.now());
   const [videoError, setVideoError] = useState(false);
   const [videoRetry, setVideoRetry] = useState(0);
-  const level = LEVELS.find((item) => item.id === room.state.activeLevel);
   const isVideo = room.state.activeView === "VIDEO";
-  const isBackdrop = room.state.activeView === "BACKDROP" || (!isVideo && !level);
+  const allTimers = (room.state.timers || []).map((timer) => ({
+    timer,
+    level: LEVELS.find((item) => item.id === timer.levelId),
+    remainingMs: remainingAt(timer, clockOffset, clientNow)
+  })).filter((item) => item.level);
+  const visibleTimers = allTimers.filter(({ timer, remainingMs }) =>
+    timer.status !== "FINISHED" && !(timer.status === "RUNNING" && remainingMs <= 0));
+  const completedTimers = allTimers.filter(({ timer, remainingMs }) =>
+    timer.status === "FINISHED" || (timer.status === "RUNNING" && remainingMs <= 0));
+  const isSplitDisplay = allTimers.length === 2;
+  const isBackdrop = room.state.activeView === "BACKDROP" || (!isVideo && !allTimers.length);
   const activeVideo = DISPLAY_VIDEOS.find((video) => video.id === room.state.activeVideo);
   const missingVideo = isVideo && !activeVideo;
   const requestedVideoSource = isBackdrop ? `${VIDEO_ASSET_BASE}backdrop.MP4` :
     isVideo ? activeVideo?.src : TIMER_BACKGROUND_VIDEO;
   const selectedVideoError = missingVideo || (isVideo && videoError);
   const videoSource = selectedVideoError ? TIMER_BACKGROUND_VIDEO : requestedVideoSource || TIMER_BACKGROUND_VIDEO;
-  const remaining = remainingAt(room.state.timer, clockOffset, clientNow);
-  const finished = room.state.timer.status === "FINISHED" || (room.state.timer.status === "RUNNING" && remaining <= 0);
-  const lastMinute = !finished && remaining > 0 && remaining <= 60_000;
-  const lastMinuteSeconds = Math.ceil(remaining / 1000);
+  const singleTimer = visibleTimers[0];
+  const remaining = singleTimer?.remainingMs || 0;
+  const lastMinute = Boolean(singleTimer && remaining > 0 && remaining <= 60_000);
+  const lastMinuteSeconds = formatCountdownSeconds(remaining);
   const timerParts = formatTime(remaining).split(":");
-  const displayTitle = level?.id === "fwp" ? "Fun With Programming" :
-    ["mosaic", "fwm"].includes(level?.id) ? "Mosaic & FWM" : level?.title;
-  const displaySubtitle = ["fwp", "mechanic-engineering", "programming"].includes(level?.id)
-    ? "Building and test track"
-    : null;
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setClientNow(Date.now()), 250);
@@ -569,7 +638,7 @@ function Display({ room, clockOffset, socket }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  return <main className={`display-stage ${isBackdrop ? "display-backdrop-mode" : isVideo ? "display-video-mode" : "display-timer-mode"} ${finished ? "display-finished" : ""}`}>
+  return <main className={`display-stage ${isBackdrop ? "display-backdrop-mode" : isVideo ? "display-video-mode" : "display-timer-mode"} ${isSplitDisplay ? "display-split-mode" : ""}`}>
     <video
       key={`${videoSource}-${videoRetry}-${room.state.displayVideoRetry}`}
       className="backdrop-video"
@@ -591,21 +660,35 @@ function Display({ room, clockOffset, socket }) {
         setVideoRetry((attempt) => attempt + 1);
       }}>Retry</button>}
     </div>}
-    {isBackdrop || isVideo ? null : <section className={`timer-scene ${lastMinute ? "timer-scene-final-minute" : ""}`}>
-      {lastMinute
-        ? <FinalMinuteCountdown seconds={lastMinuteSeconds} />
-        : <>
-          <h1 className="timer-level-title">{displayTitle}</h1>
-          {displaySubtitle && <p className="timer-level-subtitle">{displaySubtitle}</p>}
-          <div className={`flip-clock ${finished ? "clock-finished" : ""}`} role="timer" aria-label={`Time remaining ${formatTime(remaining)}`}>
-          <FlipUnit value={timerParts[0]} label="Hours" />
-          <span className="flip-clock-separator" aria-hidden="true">:</span>
-          <FlipUnit value={timerParts[1]} label="Minutes" />
-          <span className="flip-clock-separator" aria-hidden="true">:</span>
-          <FlipUnit value={timerParts[2]} label="Seconds" />
-          </div>
-        </>}
-    </section>}
+    {isBackdrop || isVideo ? null : isSplitDisplay
+      ? <section className="split-timer-scene" aria-label="Two level timers">
+        <span className="split-timer-divider" aria-hidden="true" />
+        {allTimers.map(({ timer, level, remainingMs }) => <CircularTimer key={timer.levelId} level={level} remainingMs={remainingMs} timer={timer} />)}
+      </section>
+      : singleTimer
+        ? <section className={`timer-scene ${lastMinute ? "timer-scene-final-minute" : ""}`}>
+          <h1 className="timer-level-title">{singleTimer.level.title}</h1>
+          <p className="timer-level-subtitle">{singleTimer.level.details}</p>
+          {lastMinute
+            ? <FinalMinuteCountdown seconds={lastMinuteSeconds} />
+            : <div className="flip-clock" role="timer" aria-label={`Time remaining ${formatTime(remaining)}`}>
+              <FlipUnit value={timerParts[0]} label="Hours" />
+              <span className="flip-clock-separator" aria-hidden="true">:</span>
+              <FlipUnit value={timerParts[1]} label="Minutes" />
+              <span className="flip-clock-separator" aria-hidden="true">:</span>
+              <FlipUnit value={timerParts[2]} label="Seconds" />
+            </div>}
+        </section>
+        : <section className="timer-completion-scene">
+          <div className="completion-mark"><Check size={42} /></div>
+          <h1>Level complete</h1>
+          <p>{completedTimers.map(({ level }) => completionMessage(level)).join(" ")}</p>
+        </section>}
+    {completedTimers.length > 0 && !isBackdrop && !isVideo && visibleTimers.length > 0 && !isSplitDisplay &&
+      <div className="completion-notice" role="alert">
+        <Check size={18} />
+        <span><strong>{completedTimers.map(({ level }) => level.title).join(" · ")}</strong> complete</span>
+      </div>}
     <AudioEngine ref={audioEngineRef} socket={socket} audioState={room.state.audio} onStatus={setAudioStatus} />
     {audioStatus !== "playing" && <button className="display-audio-prompt" onClick={() => audioEngineRef.current?.activate()}>
       {audioStatus === "prompt" && <>Tap to enable event audio</>}

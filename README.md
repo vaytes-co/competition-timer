@@ -6,8 +6,8 @@ VAYTES is a self-hosted event timer: a phone operates a protected Room, while la
 
 - Password-protected Room creation/joining, six-character unambiguous codes, hashed passwords, random resumable sessions, owner-only Controller authorization, and multiple Displays.
 - Socket.IO Room state snapshots, reconnect recovery, ordered revisions, acknowledgements, member counts, input checks, and server-side command authorization.
-- Server-authoritative timer for Mosaic (20m), FWM (20m), FWP (60m), Mechanic Engineering (60m), and Programming (120m). Start, pause, resume, reset, finish, and guarded level switching are implemented.
-- Separate mobile-first Controller and presentation-only Display. The Display loops supplied full-screen videos in backdrop, timer, and selected-video modes. Timer content appears over the timer background video, with an animated seconds-only countdown during the final minute. The Controller can remotely retry video playback on connected Displays.
+- Server-authoritative timers for Mosaic 1D & 2D (20m), Mosaic 3D (40m), Fun With Machine (20m), Fun With Programming (60m), Mechanic Engineering (60m), and Programming (120m). Up to two level timers can run concurrently; each can be started, paused, resumed, reset, finished, and removed independently.
+- Separate mobile-first Controller and presentation-only Display. The Display loops supplied full-screen videos in backdrop, timer, and selected-video modes. One timer uses the existing full-screen clock; two timers share the same background in a split layout with large circular clocks. Level names and descriptions remain visible during the final minute, completed timers show a completion notice and stay hidden until reset, and the Controller can remotely retry video playback on connected Displays.
 - A persistent Display audio element with a visible tap-to-enable prompt, playback retry feedback, mute and volume synchronization, and track-load handling.
 - Memory-only Room storage with a 24-hour default expiry. Room passwords use bcrypt hashes; session tokens are stored server-side as SHA-256 hashes.
 
@@ -22,6 +22,10 @@ npm install
 npm install --prefix backend
 npm install --prefix frontend
 npm run dev
+
+$env:VITE_SOCKET_URL = "https://YOUR-API-DOMAIN"
+npm run build --prefix frontend
+Remove-Item Env:VITE_SOCKET_URL
 ```
 
 Open the Vite URL shown in the terminal (normally `http://localhost:5173`). The backend health endpoint is `http://localhost:3001/api/health`.

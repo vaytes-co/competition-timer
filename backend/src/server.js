@@ -6,7 +6,7 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { Server } from "socket.io";
 import { RoomError, RoomManager } from "./rooms.js";
-import { finishTimer, TimerCommandError } from "./timer.js";
+import { finishTimers, TimerCommandError } from "./timer.js";
 
 const app = express();
 const httpServer = createServer(app);
@@ -142,6 +142,7 @@ io.on("connection", (socket) => {
   socket.on("display:set-video", runCommand("set-video"));
   socket.on("display:retry-video", runCommand("retry-video"));
   socket.on("timer:select-level", runCommand("select-level"));
+  socket.on("timer:remove-level", runCommand("remove-level"));
   socket.on("timer:start", runCommand("start"));
   socket.on("timer:pause", runCommand("pause"));
   socket.on("timer:resume", runCommand("resume"));
@@ -182,7 +183,7 @@ const completionCheck = setInterval(() => {
   const now = Date.now();
   for (const code of manager.expire()) io.to(code).emit("room:closed");
   for (const room of manager.list()) {
-    const state = finishTimer(room.state, now);
+    const state = finishTimers(room.state, now);
     if (state !== room.state) {
       room.state = state;
       io.to(room.code).emit("room:state", manager.snapshot(room).state);

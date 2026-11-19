@@ -1,6 +1,6 @@
 import { randomBytes, createHash } from "node:crypto";
 import bcrypt from "bcryptjs";
-import { applyCommand, createInitialState, finishTimer, publicState } from "./timer.js";
+import { applyCommand, createInitialState, finishTimers, publicState } from "./timer.js";
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
@@ -132,7 +132,7 @@ export class RoomManager {
       rejectRoomRequest("Only the Room's primary Controller can change settings.");
     }
     const room = member.room;
-    room.state = finishTimer(room.state, this.now());
+    room.state = finishTimers(room.state, this.now());
     room.state = applyCommand(room.state, command, this.now());
     return this.snapshot(room);
   }
