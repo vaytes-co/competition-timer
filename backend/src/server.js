@@ -147,6 +147,7 @@ io.on("connection", (socket) => {
   socket.on("timer:pause", runCommand("pause"));
   socket.on("timer:resume", runCommand("resume"));
   socket.on("timer:reset", runCommand("reset"));
+  socket.on("timer:start-extra-time", runCommand("start-extra-time"));
   socket.on("audio:set-mute", runCommand("set-mute"));
   socket.on("audio:set-volume", runCommand("set-volume"));
 

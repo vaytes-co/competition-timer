@@ -11,7 +11,7 @@ const API_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.DEV ? "http:
 const LEVELS = [
   { id: "mosaic-1d-2d", title: "Mosaic 1D & 2D", details: "Building", duration: "20 MIN", hue: "orange" },
   { id: "mosaic-3d", title: "Mosaic 3D", details: "Building", duration: "40 MIN", hue: "blue" },
-  { id: "fwm", title: "Fun With Machine", details: "Building", duration: "20 MIN", hue: "yellow" },
+  { id: "fwm", title: "Fun With Machine", details: "Building", duration: "15 MIN", hue: "yellow" },
   { id: "fwp", title: "Fun With Programming", details: "Building and test track", duration: "60 MIN", hue: "lilac" },
   { id: "mechanic-engineering", title: "Mechanic Engineering", details: "Building and test track", duration: "60 MIN", hue: "orange" },
   { id: "programming", title: "Programming", details: "Building and test track", duration: "120 MIN", hue: "blue" }
@@ -72,12 +72,26 @@ function remainingAt(timer, clockOffset = 0, clientNow = Date.now()) {
   return Math.max(0, timer.remainingMs - (clientNow + clockOffset - timer.startedAt));
 }
 
-function completionMessage(level) {
+function activeDuration(timer) {
+  return timer.phase === "EXTRA" ? timer.extraDurationMs : timer.durationMs;
+}
+
+function timerDescription(level, timer) {
+  return timer.phase === "EXTRA"
+    ? `Additional ${Math.round(timer.extraDurationMs / 60_000)}-minute period`
+    : level.details;
+}
+
+function completionMessage(level, timer) {
+  if (timer.phase === "EXTRA") return `${level.title}'s additional time has ended.`;
+  if (timer.extraDurationMs) return `${level.title}'s main timer has ended. Additional time is available.`;
   const phase = level.details === "Building" ? "building" : "building and testing";
   return `${level.title} has finished its ${phase} phase.`;
 }
 
-function completionPhaseLabel(level) {
+function completionPhaseLabel(level, timer) {
+  if (timer.phase === "EXTRA") return "Additional time complete.";
+  if (timer.extraDurationMs) return "Main timer complete.";
   const phase = level.details === "Building" ? "Building" : "Building and testing";
   return `${phase} phase complete.`;
 }
@@ -340,15 +354,18 @@ function TimerPanel({ level, timer, clockOffset, tick, command }) {
   const remainingMs = remainingAt(timer, clockOffset);
   const displayedStatus = timer.status === "RUNNING" && remainingMs <= 0 ? "FINISHED" : timer.status;
   const currentTimerText = formatTime(remainingMs);
+  const canStartExtraTime = timer.extraDurationMs > 0 && timer.phase === "MAIN" && displayedStatus === "FINISHED";
 
   return <section className="timer-panel">
-    <div className="panel-title"><span className="section-index">03</span><div><h2>{level.title}</h2><p>{level.details}</p></div><span className={`timer-status status-${displayedStatus.toLowerCase()}`}>{displayedStatus}</span></div>
+    <div className="panel-title"><span className="section-index">03</span><div><h2>{level.title}</h2><p>{timerDescription(level, timer)}</p></div><span className={`timer-status status-${displayedStatus.toLowerCase()}`}>{displayedStatus}</span></div>
     <div className="timer-readout" aria-label={`${level.title}: time remaining ${currentTimerText}`} data-tick={tick}>{currentTimerText}</div>
-    <div className="timer-progress"><span style={{ width: `${Math.max(0, Math.min(100, remainingMs / timer.durationMs * 100))}%` }} /></div>
+    <div className="timer-progress"><span style={{ width: `${Math.max(0, Math.min(100, remainingMs / activeDuration(timer) * 100))}%` }} /></div>
     <div className="timer-actions">
       {displayedStatus === "RUNNING" ? <button className="control-button pause-button" onClick={() => command("timer:pause", { levelId: level.id })}><Pause size={17} fill="currentColor" /> Pause</button> :
         displayedStatus === "PAUSED" ? <button className="control-button start-button" onClick={() => command("timer:resume", { levelId: level.id })}><Play size={17} fill="currentColor" /> Resume</button> :
-          <button className="control-button start-button" disabled={displayedStatus === "FINISHED"} onClick={() => command("timer:start", { levelId: level.id })}><Play size={17} fill="currentColor" /> Start timer</button>}
+          canStartExtraTime
+            ? <button className="control-button start-button" onClick={() => command("timer:start-extra-time", { levelId: level.id })}><Play size={17} fill="currentColor" /> Start extra 5 minutes</button>
+            : <button className="control-button start-button" disabled={displayedStatus === "FINISHED"} onClick={() => command("timer:start", { levelId: level.id })}><Play size={17} fill="currentColor" /> Start timer</button>}
       <button className="control-button reset-button" disabled={displayedStatus === "READY"} onClick={() => window.confirm(`Reset ${level.title} to its full duration?`) && command("timer:reset", { levelId: level.id })}><RotateCcw size={16} /> Reset</button>
       <button className="control-button display-button" onClick={() => command("display:set-view", { view: "TIMER" })}><MonitorPlay size={16} /> Show timer</button>
     </div>
@@ -571,20 +588,21 @@ function CircularTimer({ level, remainingMs, timer }) {
   const circumference = 2 * Math.PI * 44;
   const completed = timer.status === "FINISHED" || (timer.status === "RUNNING" && remainingMs <= 0);
   const finalMinute = !completed && remainingMs <= 60_000;
-  const progress = timer.durationMs ? Math.max(0, Math.min(1, remainingMs / timer.durationMs)) : 0;
+  const durationMs = activeDuration(timer);
+  const progress = durationMs ? Math.max(0, Math.min(1, remainingMs / durationMs)) : 0;
   const displayedTime = completed ? "COMPLETE" : finalMinute ? formatCountdownSeconds(remainingMs) : formatDisplayTime(remainingMs);
-  return <article className={`split-timer-card hue-${level.hue} ${completed ? "split-timer-complete" : ""}`} aria-label={`${level.title}, ${completed ? completionPhaseLabel(level) : `${displayedTime} remaining`}`}>
+  return <article className={`split-timer-card hue-${level.hue} ${completed ? "split-timer-complete" : ""}`} aria-label={`${level.title}, ${completed ? completionPhaseLabel(level, timer) : `${displayedTime} remaining`}`}>
     <h1 className="split-timer-title">{level.title}</h1>
-    <p className="split-timer-description">{level.details}</p>
+    <p className="split-timer-description">{timerDescription(level, timer)}</p>
     <div className="circular-timer">
       <svg viewBox="0 0 100 100" aria-hidden="true">
         <circle className="timer-ring-track" cx="50" cy="50" r="44" />
         <circle className="timer-ring-progress" cx="50" cy="50" r="44" strokeDasharray={circumference} strokeDashoffset={circumference * (1 - progress)} />
       </svg>
       <span className="circular-timer-value" role="timer">{completed ? "00:00" : displayedTime}</span>
-      {completed && <span className="circular-timer-complete" aria-label="Level complete"><Check size={17} /></span>}
+      {completed && <span className="circular-timer-complete" aria-label={completionPhaseLabel(level, timer)}><Check size={17} /></span>}
     </div>
-    {completed && <p className="split-timer-completion" role="status">{completionPhaseLabel(level)}</p>}
+    {completed && <p className="split-timer-completion" role="status">{completionPhaseLabel(level, timer)}</p>}
   </article>;
 }
 
@@ -598,7 +616,7 @@ function Display({ room, clockOffset, socket }) {
   const allTimers = (room.state.timers || []).map((timer) => ({
     timer,
     level: LEVELS.find((item) => item.id === timer.levelId),
-    remainingMs: remainingAt(timer, clockOffset, clientNow)
+    remainingMs: remainingAt(timer, clockOffset, clientNow),
   })).filter((item) => item.level);
   const visibleTimers = allTimers.filter(({ timer, remainingMs }) =>
     timer.status !== "FINISHED" && !(timer.status === "RUNNING" && remainingMs <= 0));
@@ -668,7 +686,7 @@ function Display({ room, clockOffset, socket }) {
       : singleTimer
         ? <section className={`timer-scene ${lastMinute ? "timer-scene-final-minute" : ""}`}>
           <h1 className="timer-level-title">{singleTimer.level.title}</h1>
-          <p className="timer-level-subtitle">{singleTimer.level.details}</p>
+          <p className="timer-level-subtitle">{timerDescription(singleTimer.level, singleTimer.timer)}</p>
           {lastMinute
             ? <FinalMinuteCountdown seconds={lastMinuteSeconds} />
             : <div className="flip-clock" role="timer" aria-label={`Time remaining ${formatTime(remaining)}`}>
@@ -681,13 +699,13 @@ function Display({ room, clockOffset, socket }) {
         </section>
         : <section className="timer-completion-scene">
           <div className="completion-mark"><Check size={42} /></div>
-          <h1>Level complete</h1>
-          <p>{completedTimers.map(({ level }) => completionMessage(level)).join(" ")}</p>
+          <h1>Timer complete</h1>
+          <p>{completedTimers.map(({ level, timer }) => completionMessage(level, timer)).join(" ")}</p>
         </section>}
     {completedTimers.length > 0 && !isBackdrop && !isVideo && visibleTimers.length > 0 && !isSplitDisplay &&
       <div className="completion-notice" role="alert">
         <Check size={18} />
-        <span><strong>{completedTimers.map(({ level }) => level.title).join(" · ")}</strong> complete</span>
+        <span><strong>{completedTimers.map(({ level, timer }) => `${level.title}: ${completionPhaseLabel(level, timer)}`).join(" · ")}</strong></span>
       </div>}
     <AudioEngine ref={audioEngineRef} socket={socket} audioState={room.state.audio} onStatus={setAudioStatus} />
     {audioStatus !== "playing" && <button className="display-audio-prompt" onClick={() => audioEngineRef.current?.activate()}>

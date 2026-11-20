@@ -1,10 +1,10 @@
 export const LEVELS = Object.freeze([
   { id: "mosaic-1d-2d", name: "Mosaic 1D & 2D", subtitle: "Building", durationMs: 20 * 60_000 },
   { id: "mosaic-3d", name: "Mosaic 3D", subtitle: "Building", durationMs: 40 * 60_000 },
-  { id: "fwm", name: "Fun With Machine", subtitle: "Building", durationMs: 20 * 60_000 },
-  { id: "fwp", name: "Fun With Programming", subtitle: "Building and test track", durationMs: 60 * 60_000 },
-  { id: "mechanic-engineering", name: "Mechanic Engineering", subtitle: "Building and test track", durationMs: 60 * 60_000 },
-  { id: "programming", name: "Programming", subtitle: "Building and test track", durationMs: 120 * 60_000 }
+  { id: "fwm", name: "Fun With Machine", subtitle: "Building", durationMs: 15 * 60_000 },
+  { id: "fwp", name: "Fun With Programming", subtitle: "Building and test track", durationMs: 60 * 60_000, extraDurationMs: 5 * 60_000 },
+  { id: "mechanic-engineering", name: "Mechanic Engineering", subtitle: "Building and test track", durationMs: 60 * 60_000, extraDurationMs: 5 * 60_000 },
+  { id: "programming", name: "Programming", subtitle: "Building and test track", durationMs: 120 * 60_000, extraDurationMs: 5 * 60_000 }
 ]);
 export const DISPLAY_VIDEO_IDS = Object.freeze([
   "break",
@@ -59,7 +59,9 @@ export function applyCommand(state, command, now = Date.now()) {
       next.timers.push({
         levelId: level.id,
         status: "READY",
+        phase: "MAIN",
         durationMs: level.durationMs,
+        extraDurationMs: level.extraDurationMs || 0,
         remainingMs: level.durationMs,
         startedAt: null
       });
@@ -90,8 +92,22 @@ export function applyCommand(state, command, now = Date.now()) {
       break;
     case "start": {
       const timer = getTimer(state, command.levelId);
-      if (timer.status !== "READY") rejectCommand("The timer is not ready to start.");
+      if (timer.status !== "READY" || timer.phase !== "MAIN") rejectCommand("The timer is not ready to start.");
       replaceTimer(next, command.levelId, { ...timer, status: "RUNNING", startedAt: now });
+      break;
+    }
+    case "start-extra-time": {
+      const timer = getTimer(state, command.levelId);
+      if (!timer.extraDurationMs || timer.phase !== "MAIN" || timer.status !== "FINISHED") {
+        rejectCommand("Extra time is available only after an eligible main timer finishes.");
+      }
+      replaceTimer(next, command.levelId, {
+        ...timer,
+        phase: "EXTRA",
+        status: "RUNNING",
+        remainingMs: timer.extraDurationMs,
+        startedAt: now
+      });
       break;
     }
     case "pause": {
@@ -122,6 +138,7 @@ export function applyCommand(state, command, now = Date.now()) {
       replaceTimer(next, command.levelId, {
         ...timer,
         status: "READY",
+        phase: "MAIN",
         remainingMs: timer.durationMs,
         startedAt: null
       });

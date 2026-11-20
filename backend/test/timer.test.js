@@ -6,11 +6,43 @@ test("defines all six levels with the required names and durations", () => {
   assert.deepEqual(LEVELS.map(({ id, name, subtitle, durationMs }) => [id, name, subtitle, durationMs / 60_000]), [
     ["mosaic-1d-2d", "Mosaic 1D & 2D", "Building", 20],
     ["mosaic-3d", "Mosaic 3D", "Building", 40],
-    ["fwm", "Fun With Machine", "Building", 20],
+    ["fwm", "Fun With Machine", "Building", 15],
     ["fwp", "Fun With Programming", "Building and test track", 60],
     ["mechanic-engineering", "Mechanic Engineering", "Building and test track", 60],
     ["programming", "Programming", "Building and test track", 120]
   ]);
+});
+
+test("starts one five-minute extra period only after eligible main timers finish", () => {
+  for (const levelId of ["fwp", "mechanic-engineering", "programming"]) {
+    let state = applyCommand(createInitialState(0), { type: "select-level", levelId }, 0);
+    state = applyCommand(state, { type: "start", levelId }, 1);
+    const extraStart = state.timers[0].durationMs + 2;
+    state = finishTimers(state, extraStart - 1);
+    state = applyCommand(state, { type: "start-extra-time", levelId }, extraStart);
+    const timer = state.timers[0];
+    assert.equal(timer.status, "RUNNING");
+    assert.equal(timer.phase, "EXTRA");
+    assert.equal(timer.remainingMs, 5 * 60_000);
+    assert.equal(remainingTime(timer, extraStart), 5 * 60_000);
+    state = finishTimers(state, extraStart + 5 * 60_000);
+    assert.equal(state.timers[0].status, "FINISHED");
+    assert.equal(state.timers[0].phase, "EXTRA");
+    assert.throws(() => applyCommand(state, { type: "start-extra-time", levelId }, extraStart + 5 * 60_000 + 1), /Extra time/);
+    state = applyCommand(state, { type: "reset", levelId }, extraStart + 5 * 60_000 + 2);
+    assert.equal(state.timers[0].status, "READY");
+    assert.equal(state.timers[0].phase, "MAIN");
+    assert.equal(state.timers[0].remainingMs, state.timers[0].durationMs);
+  }
+});
+
+test("rejects extra time before the main timer finishes or for other levels", () => {
+  let state = applyCommand(createInitialState(0), { type: "select-level", levelId: "fwp" }, 0);
+  assert.throws(() => applyCommand(state, { type: "start-extra-time", levelId: "fwp" }, 1), /Extra time/);
+  state = applyCommand(state, { type: "select-level", levelId: "fwm" }, 2);
+  state = applyCommand(state, { type: "start", levelId: "fwm" }, 3);
+  state = finishTimers(state, 15 * 60_000 + 3);
+  assert.throws(() => applyCommand(state, { type: "start-extra-time", levelId: "fwm" }, 15 * 60_000 + 4), /Extra time/);
 });
 
 test("runs and pauses two level timers independently", () => {
@@ -21,7 +53,7 @@ test("runs and pauses two level timers independently", () => {
   state = applyCommand(state, { type: "start", levelId: "fwm" }, 10_000);
   state = applyCommand(state, { type: "pause", levelId: "fwm" }, 25_000);
   assert.equal(remainingTime(state.timers.find(({ levelId }) => levelId === "mosaic-3d"), 25_000), 2_385_000);
-  assert.equal(state.timers.find(({ levelId }) => levelId === "fwm").remainingMs, 1_185_000);
+  assert.equal(state.timers.find(({ levelId }) => levelId === "fwm").remainingMs, 885_000);
   assert.equal(state.timers.find(({ levelId }) => levelId === "fwm").status, "PAUSED");
   assert.equal(state.timers.find(({ levelId }) => levelId === "mosaic-3d").status, "RUNNING");
 });
@@ -37,7 +69,7 @@ test("resets and finishes timers individually, and reset makes a finished timer 
   assert.equal(state.timers.find(({ levelId }) => levelId === "mosaic-3d").status, "RUNNING");
   state = applyCommand(state, { type: "reset", levelId: "fwm" }, 1_202_000);
   assert.equal(state.timers.find(({ levelId }) => levelId === "fwm").status, "READY");
-  assert.equal(state.timers.find(({ levelId }) => levelId === "fwm").remainingMs, 1_200_000);
+  assert.equal(state.timers.find(({ levelId }) => levelId === "fwm").remainingMs, 900_000);
 });
 
 test("rejects invalid timer transitions, duplicate selection, and a third selected level", () => {
