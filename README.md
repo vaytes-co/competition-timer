@@ -92,6 +92,8 @@ Only use music you have the right to play at the event. Different connected Disp
 
 ## Deployment to cPanel Setup Node.js App
 
+Panduan langkah demi langkah berbahasa Indonesia untuk memasang frontend, backend, MySQL, migrasi, akun, dan media: [PANDUAN_CPANEL_SCORING.md](./PANDUAN_CPANEL_SCORING.md).
+
 1. Confirm with the hosting provider that the plan supports a persistent Node.js application, incoming WebSocket upgrade requests, and/or Socket.IO HTTP long-polling; this cannot be verified without access to the actual cPanel account and provider configuration.
 2. Build the frontend with the production `VITE_SOCKET_URL` and `FRONTEND_ORIGINS` settings. Upload `frontend/dist` to the document root of the HTTPS website (or serve it from a static subdomain).
 3. Create a Setup Node.js App with a supported Node version (20+), application root set to the uploaded `backend` directory, and startup file `src/server.js`. Install backend dependencies in cPanel's application environment.

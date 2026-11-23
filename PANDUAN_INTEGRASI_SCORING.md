@@ -188,6 +188,8 @@ Cadangkan database **dan** folder media secara bersamaan. Jangan meletakkan fold
 
 ## 8. Deployment production
 
+Untuk langkah cPanel yang lebih rinci dan mudah diikuti, lihat [PANDUAN_CPANEL_SCORING.md](./PANDUAN_CPANEL_SCORING.md).
+
 1. Buat database dan user MySQL pada hosting; pastikan koneksi dari backend diizinkan.
 2. Atur `MYSQL_URL` dan `SCORING_MEDIA_DIR` pada environment aplikasi Node.js di cPanel/hosting.
 3. Atur `FRONTEND_ORIGINS` ke origin frontend HTTPS yang tepat.

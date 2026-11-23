@@ -31,6 +31,23 @@ const MIME_EXTENSIONS = new Map([
   ["video/quicktime", ".mov"]
 ]);
 
+export function createScoringMediaName(participantName, mimeType, sequence) {
+  const extension = MIME_EXTENSIONS.get(mimeType);
+  if (!extension || !Number.isInteger(sequence) || sequence < 1) {
+    throw new Error("A supported media type and positive sequence number are required.");
+  }
+  const safeParticipantName = participantName
+    .normalize("NFKC")
+    .trim()
+    .replace(/[^\p{L}\p{N}]+/gu, "_")
+    .replace(/^_+|_+$/g, "")
+    .toLowerCase()
+    .slice(0, 180)
+    .replace(/_+$/g, "") || "participant";
+  const mediaType = mimeType.startsWith("video/") ? "video" : "photo";
+  return `${safeParticipantName}_${mediaType}-${sequence}${extension}`;
+}
+
 export function bestAttempt(attempts) {
   return attempts.reduce((best, attempt) => {
     if (!best || Number(attempt.score) > Number(best.score) ||
@@ -572,32 +589,52 @@ export function createScoringRouter({
 
   router.post("/participants/:participantId/media", upload.single("file"), asyncRoute(async (request, response) => {
     if (!request.file) throw validationError("Choose a photo or video to upload.");
-    const [participants] = await pool.execute("SELECT id FROM scoring_participants WHERE id = ? LIMIT 1", [request.params.participantId]);
-    if (!participants.length) {
-      await unlink(request.file.path);
-      throw validationError("Participant not found.", 404);
-    }
     const id = randomUUID();
+    let connection;
+    let name;
     try {
-      await pool.execute(
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+      const [participants] = await connection.execute(
+        "SELECT id, name FROM scoring_participants WHERE id = ? FOR UPDATE",
+        [request.params.participantId]
+      );
+      if (!participants.length) throw validationError("Participant not found.", 404);
+      const mediaType = request.file.mimetype.startsWith("video/") ? "video" : "photo";
+      const [countRows] = await connection.execute(
+        "SELECT COUNT(*) AS total FROM scoring_media WHERE participant_id = ? AND mime_type LIKE ?",
+        [request.params.participantId, mediaType === "video" ? "video/%" : "image/%"]
+      );
+      name = createScoringMediaName(participants[0].name, request.file.mimetype, Number(countRows[0].total) + 1);
+      await connection.execute(
         `INSERT INTO scoring_media
           (id, participant_id, file_name, original_name, mime_type, file_size, created_by)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           id, request.params.participantId, request.file.filename,
-          path.basename(request.file.originalname).slice(0, 255), request.file.mimetype,
+          name, request.file.mimetype,
           request.file.size, request.user.id
         ]
       );
+      await connection.commit();
     } catch (error) {
+      if (connection) {
+        try {
+          await connection.rollback();
+        } catch (rollbackError) {
+          console.error("Scoring media transaction rollback failed:", rollbackError);
+        }
+      }
       await unlink(request.file.path);
       throw error;
+    } finally {
+      if (connection) connection.release();
     }
     response.status(201).json({
       media: {
         id,
         participantId: String(request.params.participantId),
-        name: path.basename(request.file.originalname).slice(0, 255),
+        name,
         mimeType: request.file.mimetype,
         size: request.file.size
       }

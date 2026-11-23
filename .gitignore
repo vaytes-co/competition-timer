@@ -6,3 +6,6 @@ backend/storage/
 .DS_Store
 npm-debug.log*
 PRD_VAYTES_Competition_Timer.md
+PANDUAN_CPANEL_SCORING.md
+PANDUAN_INTEGRASI_SCORING.md
+akun_database.md

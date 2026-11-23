@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, Award, Check, Clock3, FileImage, FileVideo,
-  LogOut, Medal, Search, ShieldCheck, Trophy, Upload, UsersRound, X
+  ArrowLeft, ArrowRight, Award, Camera, Check, Clock3, FileImage, FileVideo,
+  FolderOpen, LogOut, Medal, Search, ShieldCheck, Trophy, Upload, UsersRound, Video, X
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.DEV ? "http://localhost:3001" : window.location.origin);
@@ -176,6 +176,9 @@ function MediaSection({ participant, media, token, onUploaded, error, setError }
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState(null);
   const [openingId, setOpeningId] = useState("");
+  const galleryInput = useRef(null);
+  const photoInput = useRef(null);
+  const videoInput = useRef(null);
 
   useEffect(() => () => {
     if (preview?.url?.startsWith("blob:")) URL.revokeObjectURL(preview.url);
@@ -211,6 +214,12 @@ function MediaSection({ participant, media, token, onUploaded, error, setError }
     } finally {
       setUploading(false);
     }
+  }
+
+  function handleFileChange(event) {
+    const [file] = event.target.files || [];
+    event.target.value = "";
+    if (file) uploadFile(file);
   }
 
   async function openMedia(item) {
@@ -253,17 +262,21 @@ function MediaSection({ participant, media, token, onUploaded, error, setError }
         <div className="scoring-heading-icon scoring-heading-blue"><Upload size={17} /></div>
         <div><h2>Project evidence</h2><p>Photos and mission videos for {participant.name}.</p></div>
       </div>
-      <label className={`scoring-upload-zone ${uploading ? "is-uploading" : ""}`}>
-        <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" disabled={uploading} onChange={(event) => {
-          const [file] = event.target.files || [];
-          event.target.value = "";
-          if (file) uploadFile(file);
-        }} />
+      <div className={`scoring-upload-zone ${uploading ? "is-uploading" : ""}`}>
         <span className="scoring-upload-icon"><Upload size={20} /></span>
-        <strong>{uploading ? `Uploading ${progress}%` : "Add a photo or video"}</strong>
-        <span>{uploading ? "Keep this page open until the upload finishes." : "Choose one file · JPG, PNG, WebP, MP4, WebM or MOV · up to 200 MB"}</span>
+        <strong>{uploading ? `Uploading ${progress}%` : "Add project evidence"}</strong>
+        <span>{uploading ? "Keep this page open until the upload finishes." : "Choose from your device or capture new evidence · up to 200 MB"}</span>
         {uploading && <span className="scoring-upload-track"><i style={{ width: `${progress}%` }} /></span>}
-      </label>
+      </div>
+      <input ref={galleryInput} className="scoring-file-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" disabled={uploading} onChange={handleFileChange} />
+      <input ref={photoInput} className="scoring-file-input" type="file" accept="image/*" capture="environment" disabled={uploading} onChange={handleFileChange} />
+      <input ref={videoInput} className="scoring-file-input" type="file" accept="video/*" capture="environment" disabled={uploading} onChange={handleFileChange} />
+      <div className="scoring-media-actions">
+        <button type="button" onClick={() => galleryInput.current?.click()} disabled={uploading}><FolderOpen size={16} /><span>Choose from device</span></button>
+        <button type="button" onClick={() => photoInput.current?.click()} disabled={uploading}><Camera size={16} /><span>Take a photo</span></button>
+        <button type="button" onClick={() => videoInput.current?.click()} disabled={uploading}><Video size={16} /><span>Record a video</span></button>
+      </div>
+      <p className="scoring-camera-note">Camera access depends on your browser and device. Use the site over HTTPS on mobile.</p>
       {media.length > 0 ? <div className="scoring-media-list">
         {media.map((item) => {
           const isVideo = item.mimeType.startsWith("video/");

@@ -1,9 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  bestAttempt, parseByteRange, rankAllParticipants, rankParticipants,
+  bestAttempt, createScoringMediaName, parseByteRange, rankAllParticipants, rankParticipants,
   runScoringMigrations, summarizeScoringResults, validateScoringPassword
 } from "../src/scoring.js";
+
+test("uploaded media names use the participant name and independent photo/video sequence", () => {
+  assert.equal(createScoringMediaName(" Ádám Example ", "image/jpeg", 2), "ádám_example_photo-2.jpg");
+  assert.equal(createScoringMediaName("Participant", "video/quicktime", 1), "participant_video-1.mov");
+  assert.equal(createScoringMediaName("!!!", "image/png", 1), "participant_photo-1.png");
+  assert.throws(() => createScoringMediaName("Participant", "image/gif", 1), /supported media type/);
+});
 
 test("best attempt prioritizes score, then the fastest time", () => {
   assert.deepEqual(bestAttempt([
