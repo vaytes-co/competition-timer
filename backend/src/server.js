@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { createServer } from "node:http";
 import express from "express";
 import cors from "cors";
@@ -6,7 +5,11 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { Server } from "socket.io";
 import { RoomError, RoomManager } from "./rooms.js";
+import { loadBackendEnv } from "./env.js";
+import { createScoringRouter } from "./scoring.js";
 import { finishTimers, TimerCommandError } from "./timer.js";
+
+loadBackendEnv();
 
 const app = express();
 const httpServer = createServer(app);
@@ -39,6 +42,22 @@ if (!Number.isInteger(passwordMinLength) || passwordMinLength < 4 || passwordMin
 }
 const manager = new RoomManager({ ttlMs: ttlHours * 60 * 60_000, passwordMinLength });
 const socketAttempts = new Map();
+const scoring = createScoringRouter();
+app.use("/api/scoring", scoring.router);
+let scoringRetryTimer = null;
+let shuttingDown = false;
+async function initializeScoring() {
+  try {
+    await scoring.initialize();
+  } catch (error) {
+    console.error("Scoring database initialization failed:", error);
+    if (!shuttingDown) {
+      scoringRetryTimer = setTimeout(initializeScoring, 60_000);
+      scoringRetryTimer.unref();
+    }
+  }
+}
+initializeScoring();
 
 function checkSocketAuthLimit(socket) {
   const key = socket.handshake.address || "unknown";
@@ -199,8 +218,13 @@ httpServer.listen(port, "0.0.0.0", () => {
 });
 
 const shutdown = () => {
+  shuttingDown = true;
   clearInterval(completionCheck);
-  io.close(() => httpServer.close(() => process.exit(0)));
+  if (scoringRetryTimer) clearTimeout(scoringRetryTimer);
+  io.close(async () => {
+    await scoring.close();
+    httpServer.close(() => process.exit(0));
+  });
 };
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);

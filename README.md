@@ -39,6 +39,30 @@ npm run build
 
 The backend tests use Node's built-in test runner. The production frontend build is written to `frontend/dist`.
 
+## Independent scoring desk
+
+The **Scoring desk** entry on the home page is separate from Rooms and does not connect to or change the Controller, Display, or timer state. It supports Mosaic 1D, Mosaic 2D, Mosaic 3D, Fun With Machine, Fun With Programming, Mechanic Engineering, and Programming.
+
+Panduan integrasi lengkap berbahasa Indonesia: [PANDUAN_INTEGRASI_SCORING.md](./PANDUAN_INTEGRASI_SCORING.md).
+
+- Set up MySQL or MariaDB, then set `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DATABASE` in `.env`. Run `npm run migrate --prefix backend` to create/update the scoring tables; backend startup also applies pending migrations. The database must already exist, and its account needs permission to create tables and read/write the scoring schema.
+- From the repository root, the migration can also be run with the shorter command `npm run migrate`.
+- Provision individual assistant and judge accounts with the backend command below. Repeat it for each staff member. Passwords are bcrypt-hashed; do not put account passwords in source control.
+- `npm run seed` creates the shared `juri` and `asisten` accounts with one-time random passwords, without numbered judge accounts. Existing accounts are not reset by rerunning the seed.
+- Juri accounts can add participants, record or update scores, see the top three, and open the all-participant results summary. Asisten accounts can select participants and upload evidence, but the API does not expose scores or allow score changes to them.
+- Best attempt is highest score, then shortest completion time. Winners sort by score, time, then birth date (younger first); if all three are identical, names sort alphabetically for a stable order. Mosaic 1D/2D/3D and Fun With Machine use one attempt; Fun With Programming and Mechanic Engineering use three; Programming uses two.
+- Scoring login tokens work across devices and renew for one year whenever used. Signing out revokes only that device's session.
+- Uploaded photos and videos live on persistent local disk (default: `backend/storage/scoring-media`) and are served only through authenticated API requests. The participant view loads file metadata only; a photo or video is fetched when someone opens that individual item. Large photos are resized and converted to WebP in the browser when supported. Videos are uploaded as-is and streamed from disk; each file is limited to 200 MB.
+- Back up the MySQL database and media directory together. For multi-instance hosting, shared storage is required and each instance must use the same persistent media directory.
+
+Create the two default role accounts once:
+
+```powershell
+npm run seed
+```
+
+The seed prints each newly-created account's password once; save these credentials. Passwords must contain at least 4 characters and no more than 72 UTF-8 bytes. If an account already exists, seed leaves it unchanged. To create another named account or reset a password, use `npm run scoring:user --prefix backend` with `SCORING_USERNAME`, `SCORING_ROLE`, and `SCORING_PASSWORD` set. The seeder and backend use the MySQL settings in `.env`. `MYSQL_URL`, if configured, overrides the separate `MYSQL_*` settings. `SCORING_MEDIA_DIR` can point to a persistent writable folder outside the application tree. Without a reachable MySQL database, the existing timer continues to run and the scoring desk reports as unavailable.
+
 ## Environment
 
 | Variable | Purpose | Local default |
@@ -48,6 +72,13 @@ The backend tests use Node's built-in test runner. The production frontend build
 | `ROOM_TTL_HOURS` | Room lifetime from creation | `24` |
 | `ROOM_PASSWORD_MIN_LENGTH` | Minimum new Room password length (4–72) | `4` |
 | `VITE_SOCKET_URL` | Socket.IO server URL embedded at frontend build time | `http://localhost:3001` |
+| `MYSQL_HOST` | MySQL/MariaDB server for scoring | `127.0.0.1` |
+| `MYSQL_PORT` | MySQL/MariaDB port | `3306` |
+| `MYSQL_USER` | MySQL account used by scoring | `competition_app` |
+| `MYSQL_PASSWORD` | Password for the MySQL account | set in `.env` |
+| `MYSQL_DATABASE` | Existing database/schema for scoring | `competition_timer` |
+| `MYSQL_URL` | Optional full MySQL URL that overrides `MYSQL_*` settings | unset |
+| `SCORING_MEDIA_DIR` | Persistent directory for scoring uploads | `backend/storage/scoring-media` |
 
 Set `FRONTEND_ORIGINS` to the exact HTTPS frontend origin(s) in production, and set `VITE_SOCKET_URL` to the public HTTPS/WSS API origin **before building** the frontend. Do not put backend secrets in `VITE_*` variables.
 
@@ -73,18 +104,21 @@ Socket.IO is configured with both WebSocket and polling transports, so it can fa
 
 ### Storage and restart limitation
 
-This initial implementation stores Rooms, active timer state, and session hashes in process memory. A backend restart, deployment, or process crash loses every Room, including its running timer; reconnect sessions cannot restore a lost Room. The app intentionally reports the Room as unavailable instead of pretending it recovered. For production events that require restart recovery, move the Room/session/state store to a persistent database supported by the host (such as MySQL/MariaDB), and persist timer timestamps and revisions. No database or Redis service is included.
+Room data, active timer state, and Room session hashes remain in process memory. A backend restart, deployment, or process crash loses every Room, including its running timer; reconnect sessions cannot restore a lost Room. The app intentionally reports the Room as unavailable instead of pretending it recovered. The MySQL database used by the independent scoring desk does not persist Room or timer state. For production events that require timer restart recovery, move the Room/session/state store to a persistent database and persist timer timestamps and revisions.
 
 ## Project layout
 
 ```text
 backend/
   src/server.js       Express, Socket.IO events, expiration and finish checks
+  src/scoring.js      Independent MySQL scoring API and authenticated media access
+  src/provision-scoring-user.js   Staff-account provisioning command
   src/rooms.js        Room/session membership and authorization
   src/timer.js        Pure timer state machine and level configuration
-  test/               Timer and Room-manager tests
+  test/               Timer, Room-manager, and scoring-ranking tests
 frontend/
   src/App.jsx         Landing, Room forms, Controller, Display, audio engine
+  src/ScoringApp.jsx  Independent role-based scoring and evidence UI
   src/styles.css      Responsive controller and large-screen presentation
   public/assets/audio/  Supplied track and optional licensed playlist tracks
   public/assets/video/               Backdrop, timer background, and event clips

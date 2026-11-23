@@ -1,8 +1,9 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
+import ScoringApp from "./ScoringApp.jsx";
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, AudioLines, Check, ChevronDown, CircleHelp,
-  Copy, Crown, Headphones, Link2, LockKeyhole, MonitorPlay,
+  ClipboardList, Copy, Crown, Headphones, Link2, LockKeyhole, MonitorPlay,
   Pause, Play, RotateCcw, ShieldCheck, Sparkles,
   Volume2, VolumeX, Wifi, X
 } from "lucide-react";
@@ -251,7 +252,7 @@ function StatusPill({ connected }) {
   </span>;
 }
 
-function Landing({ connected, error, onCreate, onJoin, clearError }) {
+function Landing({ connected, error, onCreate, onJoin, onScoring, clearError }) {
   return <main className="landing-shell">
     <nav className="topbar"><Brand /><div className="topbar-center"><span>EVENT TOOLS</span><span className="nav-divider">/</span><span>COMPETITION TIMER</span></div><StatusPill connected={connected} /></nav>
     <section className="hero-grid">
@@ -282,7 +283,7 @@ function Landing({ connected, error, onCreate, onJoin, clearError }) {
       </div>
     </section>
     <section className="action-strip">
-      <div className="strip-intro"><span className="eyebrow">START HERE</span><strong>Set the room.<br />Run the event.</strong></div>
+      <div className="strip-intro"><span className="eyebrow">START HERE</span><strong>Run the event.<br />Record the wins.</strong></div>
       <button className="action-card create-card" onClick={onCreate}>
         <span className="action-number">01 / CONTROL</span><Crown size={22} />
         <span className="action-title">Create a room</span><span className="action-copy">Set up a protected space<br />for your event.</span>
@@ -292,6 +293,11 @@ function Landing({ connected, error, onCreate, onJoin, clearError }) {
         <span className="action-number">02 / DISPLAY</span><MonitorPlay size={22} />
         <span className="action-title">Join a room</span><span className="action-copy">Connect a controller or<br />big-screen display.</span>
         <span className="action-link">ENTER A ROOM <ArrowRight size={15} /></span>
+      </button>
+      <button className="action-card scoring-card" onClick={onScoring}>
+        <span className="action-number">03 / SCORING</span><ClipboardList size={22} />
+        <span className="action-title">Scoring desk</span><span className="action-copy">Record scores, find winners,<br />and add project evidence.</span>
+        <span className="action-link">OPEN SCORING <ArrowRight size={15} /></span>
       </button>
       <div className="strip-note"><ShieldCheck size={18} /><span>PRIVATE BY DESIGN.<br /><b>CONTROLLED BY YOU.</b></span></div>
     </section>
@@ -731,7 +737,8 @@ export default function App() {
 
   return <div key={page} className="page-transition">
     {page === "home" ?
-      <Landing connected={state.connected} error={state.error} clearError={() => state.setError("")} onCreate={() => { state.setError(""); setPage("create"); }} onJoin={() => { state.setError(""); setPage("join"); }} /> :
-      <RoomForm mode={page} connected={state.connected} error={state.error} onBack={() => { state.setError(""); setPage("home"); }} onCreate={state.createRoom} onJoin={state.joinRoom} />}
+      <Landing connected={state.connected} error={state.error} clearError={() => state.setError("")} onCreate={() => { state.setError(""); setPage("create"); }} onJoin={() => { state.setError(""); setPage("join"); }} onScoring={() => { state.setError(""); setPage("scoring"); }} /> :
+      page === "scoring" ? <ScoringApp onBack={() => setPage("home")} /> :
+        <RoomForm mode={page} connected={state.connected} error={state.error} onCreate={state.createRoom} onJoin={state.joinRoom} />}
   </div>;
 }
