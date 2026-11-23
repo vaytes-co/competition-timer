@@ -95,6 +95,14 @@ npm run migrate
 
 Migrasi membuat seluruh tabel scoring (termasuk tabel pengguna, sesi, peserta, percobaan, media, tiket media, dan pencatat versi migrasi). Anda tidak perlu membuat tabel satu per satu. Perintah ini aman dijalankan ulang: versi yang sudah diterapkan tidak dijalankan ulang. Backend juga otomatis memeriksa dan menerapkan migrasi yang belum dijalankan saat startup. Setelah nama database pada `.env` diganti, pastikan database tujuan sudah dibuat dan user MySQL memiliki izin akses ke database tersebut, lalu jalankan `npm run migrate` lagi.
 
+Untuk menghapus seluruh tabel dan data scoring lalu membuat ulang skemanya, gunakan perintah berikut:
+
+```powershell
+npm run migrate:fresh -- --confirm
+```
+
+Perintah ini hanya menghapus tabel `scoring_*` beserta akun, peserta, nilai, sesi, dan catatan medianya di database yang dikonfigurasi. Tindakan ini tidak dapat dibatalkan; file media di folder storage tidak ikut dihapus. Perintah normal `npm run migrate` tetap aman dan tidak menghapus data.
+
 Setelah migrasi berhasil, buat akun awal untuk kedua peran dengan satu perintah:
 
 ```powershell

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   bestAttempt, createScoringMediaName, parseByteRange, rankAllParticipants, rankParticipants,
-  runScoringMigrations, summarizeScoringResults, validateScoringPassword
+  runFreshScoringMigrations, runScoringMigrations, summarizeScoringResults, validateScoringPassword
 } from "../src/scoring.js";
 
 test("uploaded media names use the participant name and independent photo/video sequence", () => {
@@ -104,4 +104,38 @@ test("schema migration creates all scoring tables once and records its version",
   assert.equal(statements.filter((statement) => statement.includes("CREATE TABLE IF NOT EXISTS scoring_")).length, 7);
   assert.deepEqual(await runScoringMigrations(pool), []);
   assert.equal(statements.filter((statement) => statement.includes("CREATE TABLE IF NOT EXISTS scoring_")).length, 8);
+});
+
+test("fresh migration drops only scoring tables before recreating their schema", async () => {
+  const statements = [];
+  let migrationApplied = false;
+  const pool = {
+    async query(statement) {
+      statements.push(statement);
+      if (statement.includes("SELECT version FROM scoring_schema_migrations")) {
+        return [migrationApplied ? [{ version: 1 }] : []];
+      }
+      return [{}];
+    },
+    async execute(statement) {
+      statements.push(statement);
+      migrationApplied = true;
+      return [{}];
+    }
+  };
+
+  assert.deepEqual(await runFreshScoringMigrations(pool), [1]);
+  assert.deepEqual(
+    statements.filter((statement) => statement.startsWith("DROP TABLE IF EXISTS")),
+    [
+      "DROP TABLE IF EXISTS `scoring_media_tickets`",
+      "DROP TABLE IF EXISTS `scoring_attempts`",
+      "DROP TABLE IF EXISTS `scoring_media`",
+      "DROP TABLE IF EXISTS `scoring_sessions`",
+      "DROP TABLE IF EXISTS `scoring_participants`",
+      "DROP TABLE IF EXISTS `scoring_users`",
+      "DROP TABLE IF EXISTS `scoring_schema_migrations`"
+    ]
+  );
+  assert.equal(statements.some((statement) => statement.includes("DROP TABLE IF EXISTS `rooms`")), false);
 });

@@ -276,6 +276,20 @@ export async function runScoringMigrations(pool) {
   return newlyApplied;
 }
 
+export async function runFreshScoringMigrations(pool) {
+  const tables = [
+    "scoring_media_tickets",
+    "scoring_attempts",
+    "scoring_media",
+    "scoring_sessions",
+    "scoring_participants",
+    "scoring_users",
+    "scoring_schema_migrations"
+  ];
+  for (const table of tables) await pool.query(`DROP TABLE IF EXISTS \`${table}\``);
+  return runScoringMigrations(pool);
+}
+
 export function createScoringPool({
   mysqlUrl = process.env.MYSQL_URL,
   host = process.env.MYSQL_HOST || "127.0.0.1",

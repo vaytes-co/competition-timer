@@ -153,6 +153,14 @@ Jika berhasil, terminal menampilkan bahwa migrasi scoring sudah diterapkan atau 
 
 Perintah ini aman dijalankan ulang dan tidak menghapus data. Jika muncul `Unknown database`, periksa ejaan `MYSQL_DATABASE`, pastikan database sudah dibuat pada Langkah 1, dan pastikan user sudah dihubungkan ke database tersebut.
 
+Jika ingin menghapus semua tabel dan data scoring lalu membuat ulang skemanya, jalankan perintah berikut dari folder backend:
+
+```bash
+npm run migrate:fresh -- --confirm
+```
+
+**Perhatian:** perintah ini menghapus akun, peserta, nilai, sesi login, dan catatan media dari tabel scoring. File foto/video di folder storage tidak ikut dihapus. Perintah ini hanya menghapus tabel `scoring_*`; perintah normal `npm run migrate` tidak menghapus data.
+
 ## Langkah 7 — Buat akun juri dan asisten
 
 Setelah migrasi berhasil, dari folder backend yang sama jalankan:
