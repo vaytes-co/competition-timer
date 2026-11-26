@@ -160,6 +160,15 @@ io.on("connection", (socket) => {
   socket.on("display:set-view", runCommand("set-view"));
   socket.on("display:set-video", runCommand("set-video"));
   socket.on("display:retry-video", runCommand("retry-video"));
+  socket.on("display:show-winner", acknowledge(async ({ levelId } = {}) => {
+    const room = manager.requirePrimaryController(socket.id);
+    if (!scoring.isReady()) throw new RoomError("The scoring database is unavailable. Try again shortly.");
+    const result = await scoring.getWinners(levelId);
+    if (!result.winners.length) throw new RoomError("No scored winners are available for this level yet.");
+    const updatedRoom = manager.revealWinners(socket.id, result);
+    io.to(room.code).emit("room:state", updatedRoom.state);
+    return { room: updatedRoom };
+  }));
   socket.on("timer:select-level", runCommand("select-level"));
   socket.on("timer:remove-level", runCommand("remove-level"));
   socket.on("timer:start", runCommand("start"));

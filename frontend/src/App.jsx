@@ -2,10 +2,10 @@ import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRe
 import { io } from "socket.io-client";
 import ScoringApp from "./ScoringApp.jsx";
 import {
-  ArrowDownRight, ArrowLeft, ArrowRight, AudioLines, Check, ChevronDown, CircleHelp,
+  ArrowDownRight, ArrowLeft, ArrowRight, AudioLines, Award, Check, ChevronDown, CircleHelp,
   ClipboardList, Copy, Crown, Headphones, Link2, LockKeyhole, MonitorPlay,
   Pause, Play, RotateCcw, ShieldCheck, Sparkles,
-  Volume2, VolumeX, Wifi, X
+  Trophy, Volume2, VolumeX, Wifi, X
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.DEV ? "http://localhost:3001" : window.location.origin);
@@ -16,6 +16,15 @@ const LEVELS = [
   { id: "fwp", title: "Fun With Programming", details: "Building and test track", duration: "60 MIN", hue: "lilac" },
   { id: "mechanic-engineering", title: "Mechanic Engineering", details: "Building and test track", duration: "60 MIN", hue: "orange" },
   { id: "programming", title: "Programming", details: "Building and test track", duration: "120 MIN", hue: "blue" }
+];
+const WINNER_LEVELS = [
+  { id: "mosaic-1d", title: "Mosaic 1D" },
+  { id: "mosaic-2d", title: "Mosaic 2D" },
+  { id: "mosaic-3d", title: "Mosaic 3D" },
+  { id: "fwm", title: "Fun With Machine" },
+  { id: "fwp", title: "Fun With Programming" },
+  { id: "mechanic-engineering", title: "Mechanic Engineering" },
+  { id: "programming", title: "Programming" }
 ];
 const VIDEO_ASSET_BASE = `${import.meta.env.BASE_URL}assets/video/`;
 const TIMER_BACKGROUND_VIDEO = `${VIDEO_ASSET_BASE}background.mp4`;
@@ -382,6 +391,7 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
   const [notice, setNotice] = useState("");
   const [displayVolume, setDisplayVolume] = useState(room.state.audio.volume);
   const [tick, setTick] = useState(0);
+  const [winnerRequest, setWinnerRequest] = useState("");
   const selectedTimers = room.state.timers || [];
   const selectedLevelIds = new Set(selectedTimers.map((timer) => timer.levelId));
 
@@ -395,6 +405,12 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
     setNotice("");
     const result = await emit(event, payload);
     if (!result.ok) setNotice(result.error);
+  }
+
+  async function revealWinner(level) {
+    setWinnerRequest(level.id);
+    await command("display:show-winner", { levelId: level.id });
+    setWinnerRequest("");
   }
 
   async function toggleLevel(level) {
@@ -463,6 +479,26 @@ function Controller({ room, connected, clockOffset, emit, onLeave, onClose }) {
         <button className="control-button display-button retry-display-button" disabled={!room.members?.displaysOnline} onClick={() => command("display:retry-video")}>
           <RotateCcw size={16} /> Retry video on Displays
         </button>
+      </section>
+      <section className="control-section winner-control-section">
+        <div className="section-heading"><span className="section-index">03</span><div><h2>Winner reveal</h2><p>Reveal the current top three from the live database on every connected Display.</p></div></div>
+        <div className="winner-control-grid">
+          {WINNER_LEVELS.map((level, index) => {
+            const selected = room.state.activeView === "WINNER" && room.state.winnerReveal?.levelId === level.id;
+            return <button
+              key={level.id}
+              className={`winner-control-card ${selected ? "winner-control-selected" : ""}`}
+              disabled={Boolean(winnerRequest)}
+              aria-pressed={selected}
+              onClick={() => revealWinner(level)}
+            >
+              <span className="winner-control-number">{String(index + 1).padStart(2, "0")}</span>
+              <Trophy size={17} />
+              <strong>{level.title}</strong>
+              <small>{winnerRequest === level.id ? "LOADING LIVE RESULTS…" : "REVEAL TOP THREE"}</small>
+            </button>;
+          })}
+        </div>
       </section>
       <section className={`dashboard-lower ${selectedTimers.length > 1 ? "has-two-timer-panels" : ""}`}>
         <div className={`timer-panel-list ${selectedTimers.length > 1 ? "has-multiple-timers" : ""}`}>
@@ -612,6 +648,35 @@ function CircularTimer({ level, remainingMs, timer }) {
   </article>;
 }
 
+function WinnerReveal({ result }) {
+  if (!result?.winners) return <section className="winner-reveal-scene" role="status">Winner information is unavailable.</section>;
+  return <section className="winner-reveal-scene" aria-label={`${result.levelName} winners`}>
+    <div className="winner-reveal-spark winner-spark-one" aria-hidden="true">✦</div>
+    <div className="winner-reveal-spark winner-spark-two" aria-hidden="true">✧</div>
+    <div className="winner-reveal-spark winner-spark-three" aria-hidden="true">✦</div>
+    <div className="winner-reveal-content">
+      <div className="winner-reveal-emblem"><Trophy size={34} strokeWidth={1.5} /></div>
+      <p className="winner-reveal-level">{result.levelName}</p>
+      <h1>THE <em>PODIUM</em></h1>
+      <div className="winner-reveal-divider"><span /> TOP THREE <span /></div>
+      <div className="winner-podium-grid">
+        {[1, 2, 3].map((place) => {
+          const winner = result.winners.find((item) => item.place === place);
+          return <article className={`winner-podium-card winner-place-${place}`} key={place}>
+            <span className="winner-place-number">{String(place).padStart(2, "0")}</span>
+            <span className="winner-place-label">{["1ST PLACE", "2ND PLACE", "3RD PLACE"][place - 1]}</span>
+            {winner ? <>
+              <strong className="winner-place-name">{winner.name}</strong>
+              <div className="winner-place-stat"><small>SCORE</small><strong>{Number(winner.score).toLocaleString()} <em>PTS</em></strong></div>
+              <div className="winner-place-stat"><small>TIME</small><strong>{formatDisplayTime(winner.durationMs)}</strong></div>
+            </> : <span className="winner-place-empty">Awaiting a scored entry</span>}
+          </article>;
+        })}
+      </div>
+    </div>
+  </section>;
+}
+
 function Display({ room, clockOffset, socket }) {
   const audioEngineRef = useRef(null);
   const [audioStatus, setAudioStatus] = useState("prompt");
@@ -619,6 +684,7 @@ function Display({ room, clockOffset, socket }) {
   const [videoError, setVideoError] = useState(false);
   const [videoRetry, setVideoRetry] = useState(0);
   const isVideo = room.state.activeView === "VIDEO";
+  const isWinner = room.state.activeView === "WINNER";
   const allTimers = (room.state.timers || []).map((timer) => ({
     timer,
     level: LEVELS.find((item) => item.id === timer.levelId),
@@ -629,11 +695,11 @@ function Display({ room, clockOffset, socket }) {
   const completedTimers = allTimers.filter(({ timer, remainingMs }) =>
     timer.status === "FINISHED" || (timer.status === "RUNNING" && remainingMs <= 0));
   const isSplitDisplay = allTimers.length === 2;
-  const isBackdrop = room.state.activeView === "BACKDROP" || (!isVideo && !allTimers.length);
+  const isBackdrop = room.state.activeView === "BACKDROP" || (!isVideo && !isWinner && !allTimers.length);
   const activeVideo = DISPLAY_VIDEOS.find((video) => video.id === room.state.activeVideo);
   const missingVideo = isVideo && !activeVideo;
   const requestedVideoSource = isBackdrop ? `${VIDEO_ASSET_BASE}backdrop.MP4` :
-    isVideo ? activeVideo?.src : TIMER_BACKGROUND_VIDEO;
+    isWinner ? TIMER_BACKGROUND_VIDEO : isVideo ? activeVideo?.src : TIMER_BACKGROUND_VIDEO;
   const selectedVideoError = missingVideo || (isVideo && videoError);
   const videoSource = selectedVideoError ? TIMER_BACKGROUND_VIDEO : requestedVideoSource || TIMER_BACKGROUND_VIDEO;
   const singleTimer = visibleTimers[0];
@@ -662,7 +728,7 @@ function Display({ room, clockOffset, socket }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  return <main className={`display-stage ${isBackdrop ? "display-backdrop-mode" : isVideo ? "display-video-mode" : "display-timer-mode"} ${isSplitDisplay ? "display-split-mode" : ""}`}>
+  return <main className={`display-stage ${isWinner ? "display-winner-mode" : isBackdrop ? "display-backdrop-mode" : isVideo ? "display-video-mode" : "display-timer-mode"} ${isSplitDisplay ? "display-split-mode" : ""}`}>
     <video
       key={`${videoSource}-${videoRetry}-${room.state.displayVideoRetry}`}
       className="backdrop-video"
@@ -684,7 +750,7 @@ function Display({ room, clockOffset, socket }) {
         setVideoRetry((attempt) => attempt + 1);
       }}>Retry</button>}
     </div>}
-    {isBackdrop || isVideo ? null : isSplitDisplay
+    {isWinner ? <WinnerReveal result={room.state.winnerReveal} /> : isBackdrop || isVideo ? null : isSplitDisplay
       ? <section className="split-timer-scene" aria-label="Two level timers">
         <span className="split-timer-divider" aria-hidden="true" />
         {allTimers.map(({ timer, level, remainingMs }) => <CircularTimer key={timer.levelId} level={level} remainingMs={remainingMs} timer={timer} />)}

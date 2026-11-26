@@ -66,3 +66,43 @@ test("a password-holder can replace the primary Controller only after it disconn
   assert.notEqual(replacement.sessionToken, created.sessionToken);
   assert.equal(manager.getMember("replacement").role, "CONTROLLER");
 });
+
+test("the primary Controller can reveal three database winners without changing timer settings", async () => {
+  const manager = new RoomManager({ now: () => 10_000 });
+  const created = await manager.create({ name: "Winner reveal", password: "pass1234" }, "controller");
+  manager.command("controller", { type: "select-level", levelId: "fwm" });
+  manager.command("controller", { type: "start", levelId: "fwm" });
+  const before = manager.snapshot(manager.rooms.get(created.room.code)).state.timers;
+  const result = {
+    levelId: "fwm",
+    levelName: "Fun With Machine",
+    winners: [
+      { place: 1, name: "First Place", score: 125, durationMs: 42_500 },
+      { place: 2, name: "Second Place", score: 115, durationMs: 44_000 },
+      { place: 3, name: "Third Place", score: 105, durationMs: 47_000 }
+    ]
+  };
+
+  const revealed = manager.revealWinners("controller", result);
+  assert.equal(revealed.state.activeView, "WINNER");
+  assert.deepEqual(revealed.state.winnerReveal, result);
+  assert.deepEqual(revealed.state.timers, before);
+  assert.throws(() => manager.revealWinners("controller", null), /no scored winners/);
+});
+
+test("Displays cannot trigger winner reveals and normal display commands dismiss them", async () => {
+  const manager = new RoomManager();
+  const created = await manager.create({ name: "Winner permissions", password: "pass1234" }, "controller");
+  await manager.join({ code: created.room.code, password: "pass1234", role: "DISPLAY" }, "display");
+  const result = {
+    levelId: "fwp",
+    levelName: "Fun With Programming",
+    winners: [{ place: 1, name: "First Place", score: 100, durationMs: 1000 }]
+  };
+  assert.throws(() => manager.revealWinners("display", result), /primary Controller/);
+
+  manager.revealWinners("controller", result);
+  const restored = manager.command("controller", { type: "set-view", view: "BACKDROP" });
+  assert.equal(restored.state.activeView, "BACKDROP");
+  assert.equal(restored.state.winnerReveal, null);
+});

@@ -126,14 +126,50 @@ export class RoomManager {
   }
 
   command(socketId, command) {
+    const room = this.requirePrimaryController(socketId);
+    room.state = finishTimers(room.state, this.now());
+    const nextState = applyCommand(room.state, command, this.now());
+    if (["select-level", "set-view", "set-video"].includes(command.type)) nextState.winnerReveal = null;
+    room.state = nextState;
+    return this.snapshot(room);
+  }
+
+  requirePrimaryController(socketId) {
     const member = this.getMember(socketId);
     if (!member) rejectRoomRequest("Join an active Room first.");
     if (member.role !== "CONTROLLER" || member.tokenHash !== member.room.ownerTokenHash) {
       rejectRoomRequest("Only the Room's primary Controller can change settings.");
     }
-    const room = member.room;
-    room.state = finishTimers(room.state, this.now());
-    room.state = applyCommand(room.state, command, this.now());
+    return member.room;
+  }
+
+  revealWinners(socketId, result) {
+    const room = this.requirePrimaryController(socketId);
+    const validWinners = Array.isArray(result?.winners) && result.winners.length > 0 &&
+      result.winners.length <= 3 && result.winners.every((winner, index) =>
+        winner.place === index + 1 &&
+        typeof winner.name === "string" && winner.name.trim() &&
+        Number.isFinite(winner.score) &&
+        Number.isInteger(winner.durationMs) && winner.durationMs > 0);
+    if (!result || typeof result.levelId !== "string" || typeof result.levelName !== "string" || !validWinners) {
+      rejectRoomRequest("There are no scored winners to reveal for this level.");
+    }
+    room.state = {
+      ...room.state,
+      activeView: "WINNER",
+      winnerReveal: {
+        levelId: result.levelId,
+        levelName: result.levelName,
+        winners: result.winners.map(({ place, name, score, durationMs }) => ({
+          place,
+          name,
+          score,
+          durationMs
+        }))
+      },
+      revision: room.state.revision + 1,
+      updatedAt: this.now()
+    };
     return this.snapshot(room);
   }
 

@@ -371,7 +371,7 @@ export function createScoringRouter({
     const ticket = typeof request.query.ticket === "string" ? request.query.ticket : "";
     if (!ticket || ticket.length > 128) throw validationError("A valid media access ticket is required.", 401);
     const [rows] = await pool.execute(
-      `SELECT m.file_name, m.mime_type
+      `SELECT m.file_name, m.original_name, m.mime_type
        FROM scoring_media_tickets t JOIN scoring_media m ON m.id = t.media_id
        WHERE t.token_hash = ? AND t.media_id = ? AND t.expires_at_ms > ? LIMIT 1`,
       [hashToken(ticket), request.params.mediaId, Date.now()]
@@ -397,6 +397,9 @@ export function createScoringRouter({
       "Cross-Origin-Resource-Policy": "cross-origin",
       "X-Content-Type-Options": "nosniff"
     });
+    if (request.query.download === "1") {
+      response.set("Content-Disposition", `attachment; filename*=UTF-8''${encodeURIComponent(rows[0].original_name)}`);
+    }
     const streamFile = (options) => {
       const stream = createReadStream(filePath, options);
       stream.on("error", (error) => {
@@ -734,5 +737,43 @@ export function createScoringRouter({
     return created;
   };
 
-  return { router, pool, initialize, provisionUser, seedDefaultUsers, close: () => pool?.end() };
+  const getWinners = async (levelId) => {
+    const level = validateLevel(levelId);
+    if (!pool || !ready) throw new Error("Scoring database is not ready.");
+    const [rows] = await pool.execute(`
+      SELECT p.id, p.level_id, p.name,
+        DATE_FORMAT(p.birth_date, '%Y-%m-%d') AS birthDate,
+        a.attempt_number, a.score, a.duration_ms
+      FROM scoring_participants p
+      LEFT JOIN scoring_attempts a ON a.participant_id = p.id
+      WHERE p.level_id = ?
+      ORDER BY p.name, a.attempt_number
+    `, [level.id]);
+    const participants = summarizeScoringResults(rows)
+      .find((item) => item.id === level.id)?.participants || [];
+    const winners = participants
+      .filter((participant) => participant.place && participant.place <= 3)
+      .map((participant) => ({
+        place: participant.place,
+        name: participant.name,
+        score: participant.bestAttempt.score,
+        durationMs: participant.bestAttempt.durationMs
+      }));
+    return {
+      levelId: level.id,
+      levelName: level.name,
+      winners
+    };
+  };
+
+  return {
+    router,
+    pool,
+    initialize,
+    isReady: () => ready,
+    getWinners,
+    provisionUser,
+    seedDefaultUsers,
+    close: () => pool?.end()
+  };
 }

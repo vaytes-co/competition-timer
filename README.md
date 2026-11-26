@@ -7,7 +7,7 @@ VAYTES is a self-hosted event timer: a phone operates a protected Room, while la
 - Password-protected Room creation/joining, six-character unambiguous codes, hashed passwords, random resumable sessions, owner-only Controller authorization, and multiple Displays.
 - Socket.IO Room state snapshots, reconnect recovery, ordered revisions, acknowledgements, member counts, input checks, and server-side command authorization.
 - Server-authoritative timers for Mosaic 1D & 2D (20m), Mosaic 3D (40m), Fun With Machine (15m), Fun With Programming (60m), Mechanic Engineering (60m), and Programming (120m). Up to two level timers can run concurrently; each can be started, paused, resumed, reset, finished, and removed independently. After the main timer finishes for Fun With Programming, Mechanic Engineering, or Programming, the Controller can trigger one additional five-minute period.
-- Separate mobile-first Controller and presentation-only Display. The Display loops supplied full-screen videos in backdrop, timer, and selected-video modes. One timer uses the existing full-screen clock; two timers share the same background in a split layout with large circular clocks. Level names and descriptions remain visible during the final minute, completed timers show a completion notice and stay hidden until reset, and the Controller can remotely retry video playback on connected Displays.
+- Separate mobile-first Controller and presentation-only Display. The Display loops supplied full-screen videos in backdrop, timer, selected-video, and winner-reveal modes. The Controller can reveal the current top-three scoring results for any scoring level; the backend fetches them directly from MySQL and sends their names, scores, and times to every Display in the Room without requiring a scoring login on the Display. Winner reveals use the existing video background and can be dismissed by switching views. One timer uses the existing full-screen clock; two timers share the same background in a split layout with large circular clocks. Level names and descriptions remain visible during the final minute, completed timers show a completion notice and stay hidden until reset, and the Controller can remotely retry video playback on connected Displays.
 - A persistent Display audio element with a visible tap-to-enable prompt, playback retry feedback, mute and volume synchronization, and track-load handling.
 - Memory-only Room storage with a 24-hour default expiry. Room passwords use bcrypt hashes; session tokens are stored server-side as SHA-256 hashes.
 
@@ -35,13 +35,15 @@ Run checks:
 ```powershell
 npm test
 npm run build
+
+npm run migrate:fresh -- --confirm
 ```
 
 The backend tests use Node's built-in test runner. The production frontend build is written to `frontend/dist`.
 
 ## Independent scoring desk
 
-The **Scoring desk** entry on the home page is separate from Rooms and does not connect to or change the Controller, Display, or timer state. It supports Mosaic 1D, Mosaic 2D, Mosaic 3D, Fun With Machine, Fun With Programming, Mechanic Engineering, and Programming.
+The **Scoring desk** entry on the home page is separate from Rooms and does not change Controller, Display, or timer state. The Room Controller can request current winner details from the same scoring database when triggering a reveal. Scoring supports Mosaic 1D, Mosaic 2D, Mosaic 3D, Fun With Machine, Fun With Programming, Mechanic Engineering, and Programming.
 
 Panduan integrasi lengkap berbahasa Indonesia: [PANDUAN_INTEGRASI_SCORING.md](./PANDUAN_INTEGRASI_SCORING.md).
 
@@ -52,7 +54,7 @@ Panduan integrasi lengkap berbahasa Indonesia: [PANDUAN_INTEGRASI_SCORING.md](./
 - Juri accounts can add participants, record or update scores, see the top three, and open the all-participant results summary. Asisten accounts can select participants and upload evidence, but the API does not expose scores or allow score changes to them.
 - Best attempt is highest score, then shortest completion time. Winners sort by score, time, then birth date (younger first); if all three are identical, names sort alphabetically for a stable order. Mosaic 1D/2D/3D and Fun With Machine use one attempt; Fun With Programming and Mechanic Engineering use three; Programming uses two.
 - Scoring login tokens work across devices and renew for one year whenever used. Signing out revokes only that device's session.
-- Uploaded photos and videos live on persistent local disk (default: `backend/storage/scoring-media`) and are served only through authenticated API requests. The participant view loads file metadata only; a photo or video is fetched when someone opens that individual item. Large photos are resized and converted to WebP in the browser when supported. Videos are uploaded as-is and streamed from disk; each file is limited to 200 MB.
+- Uploaded photos and videos live on persistent local disk (default: `backend/storage/scoring-media`) and are served only through authenticated API requests or short-lived media tickets. The participant view loads file metadata only; a photo or video is fetched when someone opens that individual item in the fullscreen viewer, which supports previous/next navigation and downloads. Large photos are resized and converted to WebP in the browser when supported. Mobile users can record through the browser with a 1080p resolution request when supported, or use the device camera; uploaded videos are not transcoded and are streamed from disk. Each file is limited to 200 MB.
 - Back up the MySQL database and media directory together. For multi-instance hosting, shared storage is required and each instance must use the same persistent media directory.
 
 Create the two default role accounts once:

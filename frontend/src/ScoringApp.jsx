@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  ArrowLeft, ArrowRight, Award, Camera, Check, Clock3, FileImage, FileVideo,
-  FolderOpen, LogOut, Medal, Search, ShieldCheck, Trophy, Upload, UsersRound, Video, X
+  ArrowLeft, ArrowRight, Award, Camera, Check, ChevronLeft, ChevronRight, Clock3, FileImage, FileVideo,
+  Download, FolderOpen, LogOut, Medal, Search, ShieldCheck, Trophy, Upload, UsersRound, Video, X
 } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.DEV ? "http://localhost:3001" : window.location.origin);
@@ -176,13 +177,49 @@ function MediaSection({ participant, media, token, onUploaded, error, setError }
   const [progress, setProgress] = useState(0);
   const [preview, setPreview] = useState(null);
   const [openingId, setOpeningId] = useState("");
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState(null);
+  const [cameraResolution, setCameraResolution] = useState("");
+  const [cameraStarting, setCameraStarting] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordedVideo, setRecordedVideo] = useState(null);
   const galleryInput = useRef(null);
   const photoInput = useRef(null);
   const videoInput = useRef(null);
+  const cameraPreviewRef = useRef(null);
+  const recorderRef = useRef(null);
+  const recordingPartsRef = useRef([]);
 
   useEffect(() => () => {
     if (preview?.url?.startsWith("blob:")) URL.revokeObjectURL(preview.url);
   }, [preview]);
+
+  useEffect(() => () => {
+    if (recordedVideo?.url) URL.revokeObjectURL(recordedVideo.url);
+  }, [recordedVideo]);
+
+  useEffect(() => {
+    if (!preview && !cameraOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [preview, cameraOpen]);
+
+  useEffect(() => {
+    if (cameraPreviewRef.current && cameraStream) {
+      cameraPreviewRef.current.srcObject = cameraStream;
+      cameraPreviewRef.current.play().catch(() => setError("Camera preview could not start. Tap the video to play it."));
+    }
+    return () => {
+      if (recorderRef.current?.state === "recording") {
+        recorderRef.current.onstop = null;
+        recorderRef.current.stop();
+      }
+      cameraStream?.getTracks().forEach((track) => track.stop());
+    };
+  }, [cameraStream, setError]);
 
   async function uploadFile(file) {
     setError("");
@@ -229,7 +266,9 @@ function MediaSection({ participant, media, token, onUploaded, error, setError }
       if (item.mimeType.startsWith("video/")) {
         const { ticket } = await request(`/media/${item.id}/access`, token, { method: "POST" });
         setPreview({
+          id: item.id,
           url: `${API_URL}/api/scoring/media/${item.id}/stream?ticket=${encodeURIComponent(ticket)}`,
+          downloadUrl: `${API_URL}/api/scoring/media/${item.id}/stream?ticket=${encodeURIComponent(ticket)}&download=1`,
           mimeType: item.mimeType,
           name: item.name
         });
@@ -242,7 +281,8 @@ function MediaSection({ participant, media, token, onUploaded, error, setError }
           throw new Error(result.error || "This media file could not be opened.");
         }
         const blob = await response.blob();
-        setPreview({ url: URL.createObjectURL(blob), mimeType: item.mimeType, name: item.name });
+        const url = URL.createObjectURL(blob);
+        setPreview({ id: item.id, url, downloadUrl: url, mimeType: item.mimeType, name: item.name });
       }
     } catch (openError) {
       setError(openError.message);
@@ -256,47 +296,184 @@ function MediaSection({ participant, media, token, onUploaded, error, setError }
     setPreview(null);
   }
 
+  function movePreview(offset) {
+    const currentIndex = media.findIndex((item) => item.id === preview?.id);
+    const nextItem = media[currentIndex + offset];
+    if (nextItem) openMedia(nextItem);
+  }
+
+  async function openHdCamera() {
+    setError("");
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined" ||
+      typeof MediaRecorder.isTypeSupported !== "function") {
+      setError("HD recording is not supported by this browser. Use the device camera option instead.");
+      return;
+    }
+    const mimeType = ["video/mp4", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type));
+    if (!mimeType) {
+      setError("This browser cannot record a video format supported by the scoring system. Use the device camera option instead.");
+      return;
+    }
+    setCameraStarting(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1920 },
+          height: { ideal: 1080 },
+          frameRate: { ideal: 30, max: 30 }
+        }
+      });
+      const { width, height } = stream.getVideoTracks()[0].getSettings();
+      setCameraResolution(width && height ? `${width} x ${height}` : "device maximum");
+      setRecordedVideo(null);
+      setCameraStream(stream);
+      setCameraOpen(true);
+    } catch (cameraError) {
+      setError(cameraError.message || "Camera access failed. Check browser permissions and try again.");
+    } finally {
+      setCameraStarting(false);
+    }
+  }
+
+  function startRecording() {
+    if (!cameraStream) return;
+    try {
+      const mimeType = ["video/mp4", "video/webm"].find((type) => MediaRecorder.isTypeSupported(type));
+      if (!mimeType) throw new Error("No supported HD recording format is available.");
+      const recorder = new MediaRecorder(cameraStream, {
+        mimeType,
+        videoBitsPerSecond: 8_000_000
+      });
+      recordingPartsRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size) recordingPartsRef.current.push(event.data);
+      };
+      recorder.onerror = (event) => {
+        setRecording(false);
+        setError(event.error?.message || "Video recording failed. Try again or use the device camera option.");
+      };
+      recorder.onstop = () => {
+        const blob = new Blob(recordingPartsRef.current, { type: mimeType });
+        if (blob.size) {
+          setRecordedVideo({ blob, url: URL.createObjectURL(blob), mimeType });
+        } else {
+          setError("The recording was empty. Please try recording again.");
+        }
+        cameraStream.getTracks().forEach((track) => track.stop());
+        setCameraStream(null);
+        setRecording(false);
+      };
+      recorderRef.current = recorder;
+      recorder.start(1000);
+      setRecording(true);
+    } catch (recordingError) {
+      setError(recordingError.message || "Video recording could not start.");
+    }
+  }
+
+  function stopRecording() {
+    if (recorderRef.current?.state === "recording") recorderRef.current.stop();
+  }
+
+  function closeCamera() {
+    if (recorderRef.current?.state === "recording") {
+      recorderRef.current.onstop = null;
+      recorderRef.current.stop();
+    }
+    cameraStream?.getTracks().forEach((track) => track.stop());
+    setCameraStream(null);
+    setCameraOpen(false);
+    setRecording(false);
+    setRecordedVideo(null);
+  }
+
+  function uploadRecordedVideo() {
+    if (!recordedVideo) return;
+    const extension = recordedVideo.mimeType === "video/mp4" ? "mp4" : "webm";
+    const file = new File([recordedVideo.blob], `mission-hd-recording.${extension}`, { type: recordedVideo.mimeType });
+    closeCamera();
+    uploadFile(file);
+  }
+
   return <>
     <section className="scoring-panel scoring-media-panel">
       <div className="scoring-section-heading">
         <div className="scoring-heading-icon scoring-heading-blue"><Upload size={17} /></div>
         <div><h2>Project evidence</h2><p>Photos and mission videos for {participant.name}.</p></div>
       </div>
-      <div className={`scoring-upload-zone ${uploading ? "is-uploading" : ""}`}>
-        <span className="scoring-upload-icon"><Upload size={20} /></span>
-        <strong>{uploading ? `Uploading ${progress}%` : "Add project evidence"}</strong>
-        <span>{uploading ? "Keep this page open until the upload finishes." : "Choose from your device or capture new evidence · up to 200 MB"}</span>
-        {uploading && <span className="scoring-upload-track"><i style={{ width: `${progress}%` }} /></span>}
+      <div className="scoring-media-layout">
+        <div className="scoring-media-library">
+          <div className="scoring-media-library-heading"><strong>UPLOADED FILES</strong><span>{media.length}</span></div>
+          {media.length > 0 ? <div className="scoring-media-list">
+            {media.map((item) => {
+              const isVideo = item.mimeType.startsWith("video/");
+              return <button className="scoring-media-item" key={item.id} onClick={() => openMedia(item)} disabled={Boolean(openingId)}>
+                <span className="scoring-media-type">{isVideo ? <FileVideo size={17} /> : <FileImage size={17} />}</span>
+                <span className="scoring-media-copy"><strong>{item.name}</strong><small>{isVideo ? "VIDEO" : "PHOTO"} · {formatBytes(item.size)}</small></span>
+                <span className="scoring-media-open">{openingId === item.id ? "OPENING…" : "VIEW"}</span>
+              </button>;
+            })}
+          </div> : <div className="scoring-media-empty">No evidence uploaded yet.</div>}
+        </div>
+        <div className="scoring-media-upload">
+          <div className={`scoring-upload-zone ${uploading ? "is-uploading" : ""}`}>
+            <span className="scoring-upload-icon"><Upload size={20} /></span>
+            <strong>{uploading ? `Uploading ${progress}%` : "Add project evidence"}</strong>
+            <span>{uploading ? "Keep this page open until the upload finishes." : "Choose from your device or capture new evidence · up to 200 MB"}</span>
+            {uploading && <span className="scoring-upload-track"><i style={{ width: `${progress}%` }} /></span>}
+          </div>
+          <input ref={galleryInput} className="scoring-file-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" disabled={uploading} onChange={handleFileChange} />
+          <input ref={photoInput} className="scoring-file-input" type="file" accept="image/*" capture="environment" disabled={uploading} onChange={handleFileChange} />
+          <input ref={videoInput} className="scoring-file-input" type="file" accept="video/*" capture="environment" disabled={uploading} onChange={handleFileChange} />
+          <div className="scoring-media-actions">
+            <button type="button" onClick={() => galleryInput.current?.click()} disabled={uploading}><FolderOpen size={16} /><span>Choose from device</span></button>
+            <button type="button" onClick={() => photoInput.current?.click()} disabled={uploading}><Camera size={16} /><span>Take a photo</span></button>
+            <button type="button" onClick={() => videoInput.current?.click()} disabled={uploading}><Video size={16} /><span>Record a video</span></button>
+            <button type="button" onClick={openHdCamera} disabled={uploading || cameraStarting}><Video size={16} /><span>{cameraStarting ? "Opening camera…" : "Record HD video"}</span></button>
+          </div>
+          <p className="scoring-camera-note">HD recording requests 1080p; actual resolution depends on your device. Use the site over HTTPS on mobile.</p>
+          {error && <div className="scoring-message scoring-error" role="alert">{error}</div>}
+        </div>
       </div>
-      <input ref={galleryInput} className="scoring-file-input" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm,video/quicktime" disabled={uploading} onChange={handleFileChange} />
-      <input ref={photoInput} className="scoring-file-input" type="file" accept="image/*" capture="environment" disabled={uploading} onChange={handleFileChange} />
-      <input ref={videoInput} className="scoring-file-input" type="file" accept="video/*" capture="environment" disabled={uploading} onChange={handleFileChange} />
-      <div className="scoring-media-actions">
-        <button type="button" onClick={() => galleryInput.current?.click()} disabled={uploading}><FolderOpen size={16} /><span>Choose from device</span></button>
-        <button type="button" onClick={() => photoInput.current?.click()} disabled={uploading}><Camera size={16} /><span>Take a photo</span></button>
-        <button type="button" onClick={() => videoInput.current?.click()} disabled={uploading}><Video size={16} /><span>Record a video</span></button>
-      </div>
-      <p className="scoring-camera-note">Camera access depends on your browser and device. Use the site over HTTPS on mobile.</p>
-      {media.length > 0 ? <div className="scoring-media-list">
-        {media.map((item) => {
-          const isVideo = item.mimeType.startsWith("video/");
-          return <button className="scoring-media-item" key={item.id} onClick={() => openMedia(item)} disabled={Boolean(openingId)}>
-            <span className="scoring-media-type">{isVideo ? <FileVideo size={17} /> : <FileImage size={17} />}</span>
-            <span className="scoring-media-copy"><strong>{item.name}</strong><small>{isVideo ? "VIDEO" : "PHOTO"} · {formatBytes(item.size)}</small></span>
-            <span className="scoring-media-open">{openingId === item.id ? "OPENING…" : "VIEW"}</span>
-          </button>;
-        })}
-      </div> : <div className="scoring-media-empty">No evidence uploaded yet. Files are loaded only when you open them.</div>}
-      {error && <div className="scoring-message scoring-error" role="alert">{error}</div>}
     </section>
-    {preview && <div className="scoring-preview-backdrop" role="presentation" onClick={closePreview}>
+    {preview && createPortal(<div className="scoring-preview-backdrop" role="presentation" onClick={closePreview}>
       <section className="scoring-preview" role="dialog" aria-modal="true" aria-label={preview.name} onClick={(event) => event.stopPropagation()}>
-        <header><strong>{preview.name}</strong><button aria-label="Close preview" onClick={closePreview}><X size={19} /></button></header>
+        <header>
+          <strong>{preview.name}</strong>
+          {media.length > 1 && <div className="scoring-preview-nav">
+            <button aria-label="Previous file" disabled={openingId || media.findIndex((item) => item.id === preview.id) === 0} onClick={() => movePreview(-1)}><ChevronLeft size={17} /></button>
+            <span>{media.findIndex((item) => item.id === preview.id) + 1} / {media.length}</span>
+            <button aria-label="Next file" disabled={openingId || media.findIndex((item) => item.id === preview.id) === media.length - 1} onClick={() => movePreview(1)}><ChevronRight size={17} /></button>
+          </div>}
+          <a href={preview.downloadUrl} download={preview.name}><Download size={15} /> DOWNLOAD</a>
+          <button aria-label="Close preview" onClick={closePreview}><X size={19} /></button>
+        </header>
         {preview.mimeType.startsWith("video/")
           ? <video src={preview.url} controls autoPlay playsInline />
           : <img src={preview.url} alt={preview.name} />}
       </section>
-    </div>}
+    </div>, document.body)}
+    {cameraOpen && createPortal(<div className="scoring-preview-backdrop scoring-camera-backdrop" role="presentation" onClick={closeCamera}>
+      <section className="scoring-camera-dialog" role="dialog" aria-modal="true" aria-label="HD video recording" onClick={(event) => event.stopPropagation()}>
+        <header><strong>HD VIDEO STUDIO</strong><span>{recording ? "RECORDING" : recordedVideo ? "REVIEW RECORDING" : "1080P REQUESTED"}</span><button aria-label="Close camera" onClick={closeCamera}><X size={19} /></button></header>
+        <div className="scoring-camera-stage">
+          {recordedVideo
+            ? <video src={recordedVideo.url} controls autoPlay playsInline />
+            : <video ref={cameraPreviewRef} autoPlay muted playsInline />}
+          <span className={`scoring-camera-resolution ${recording ? "is-recording" : ""}`}>{recording && <i />} {cameraResolution}</span>
+        </div>
+        <footer>
+          {recordedVideo ? <>
+            <button type="button" onClick={openHdCamera}>RETAKE</button>
+            <button type="button" onClick={uploadRecordedVideo}><Upload size={15} /> USE RECORDING</button>
+          </> : recording
+            ? <button type="button" onClick={stopRecording}>STOP & REVIEW</button>
+            : <button type="button" disabled={!cameraStream} onClick={startRecording}><Video size={15} /> START RECORDING</button>}
+        </footer>
+      </section>
+    </div>, document.body)}
   </>;
 }
 
@@ -544,6 +721,15 @@ function ScoringDesk({ token, user, onLogout, onBack }) {
 
           <div className="scoring-detail-column">
             {selectedParticipant ? <>
+              <MediaSection
+                key={selectedParticipant.id}
+                participant={selectedParticipant}
+                media={media}
+                token={token}
+                onUploaded={() => request(`/participants/${selectedParticipant.id}/media`, token).then(({ media: files }) => setMedia(files))}
+                error={formError}
+                setError={setFormError}
+              />
               {isJudge && <section className="scoring-panel scoring-attempt-panel">
                 <div className="scoring-section-heading">
                   <div className="scoring-heading-icon scoring-heading-orange"><Award size={18} /></div>
@@ -560,15 +746,6 @@ function ScoringDesk({ token, user, onLogout, onBack }) {
                 </div>
                 <div className="scoring-tie-note"><Clock3 size={14} /> Ties break by completion time, then youngest participant.</div>
               </section>}
-              <MediaSection
-                key={selectedParticipant.id}
-                participant={selectedParticipant}
-                media={media}
-                token={token}
-                onUploaded={() => request(`/participants/${selectedParticipant.id}/media`, token).then(({ media: files }) => setMedia(files))}
-                error={formError}
-                setError={setFormError}
-              />
             </> : <section className="scoring-panel scoring-detail-empty">
               <div className="scoring-empty-icon"><UsersRound size={22} /></div>
               <strong>{isJudge ? "Add or select a participant" : "Select a participant"}</strong>
