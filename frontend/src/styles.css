@@ -478,41 +478,43 @@ button:focus-visible, input:focus-visible { outline: 3px solid rgba(49, 91, 232,
   .scoring-preview, .scoring-camera-dialog { width: 100%; height: 100vh; height: 100dvh; max-height: none; }
 }
 
-.winner-reveal-content { width: min(1050px, 100%); }
-.winner-reveal-emblem { width: clamp(46px, 5.5vw, 64px); height: clamp(46px, 5.5vw, 64px); margin: clamp(8px, 1.4vh, 15px) auto 8px; }
-.winner-reveal-content h1 { margin: 8px 0 0; font-size: clamp(38px, 6vw, 76px); line-height: .96; }
-.winner-reveal-divider { margin-top: 9px; }
-.winner-podium-grid { width: min(970px, 100%); margin: clamp(13px, 2vh, 22px) auto 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: 12px; }
-.winner-podium-card { min-width: 0; min-height: 218px; padding: 18px 16px; position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; text-align: left; border: 1px solid rgba(255,255,255,.26); background: rgba(15,17,22,.72); box-shadow: 0 15px 40px rgba(0,0,0,.2); backdrop-filter: blur(9px); }
-.winner-place-1 { grid-column: 2; grid-row: 1; min-height: 236px; border-color: rgba(243,211,126,.86); background: linear-gradient(155deg, rgba(106,79,27,.82), rgba(20,19,17,.82) 75%); box-shadow: 0 0 34px rgba(225,185,84,.14), 0 15px 40px rgba(0,0,0,.22); }
+.winner-reveal-scene { width: 100vw; max-width: 100vw; padding: clamp(16px, 2vh, 28px) 2vw; }
+.winner-reveal-content { width: 100%; min-width: 0; max-width: 100%; }
+.winner-reveal-level { font-size: clamp(16px, 1.6vw, 23px); }
+.winner-reveal-content h1 { margin: 8px 0 0; font-size: clamp(54px, 7vw, 98px); line-height: .96; }
+.winner-podium-grid { width: 100%; min-width: 0; max-width: 100%; margin: clamp(12px, 2vh, 24px) auto 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: stretch; gap: clamp(10px, 1.5vw, 24px); }
+.winner-podium-card { width: 100%; min-width: 0; max-width: 100%; height: clamp(320px, 58vh, 500px); min-height: 0; padding: clamp(22px, 3vw, 42px); position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: clamp(10px, 1.8vh, 20px); text-align: left; border: 1px solid rgba(255,255,255,.26); background: rgba(15,17,22,.72); box-shadow: 0 15px 40px rgba(0,0,0,.2); backdrop-filter: blur(9px); }
+.winner-place-1 { grid-column: 2; grid-row: 1; border-color: rgba(243,211,126,.86); background: linear-gradient(155deg, rgba(106,79,27,.82), rgba(20,19,17,.82) 75%); box-shadow: 0 0 34px rgba(225,185,84,.14), 0 15px 40px rgba(0,0,0,.22); }
 .winner-place-2 { grid-column: 1; grid-row: 1; border-color: rgba(211,219,232,.55); }
 .winner-place-3 { grid-column: 3; grid-row: 1; border-color: rgba(206,151,111,.6); }
-.winner-place-number { width: 30px; height: 30px; display: grid; place-items: center; color: #24221f; border-radius: 50%; background: #e8e4da; font-size: 11px; font-weight: 900; }
+.winner-place-number { width: clamp(56px, 5vw, 72px); height: clamp(56px, 5vw, 72px); display: grid; place-items: center; color: #24221f; border-radius: 50%; background: #e8e4da; font-size: clamp(20px, 2vw, 30px); font-weight: 900; }
 .winner-place-1 .winner-place-number { background: #f3d37e; }.winner-place-3 .winner-place-number { color: #fff; background: #9c6845; }
-.winner-place-label { color: rgba(255,255,255,.68); font-size: 8px; font-weight: 900; letter-spacing: .16em; }
+.winner-place-label { color: rgba(255,255,255,.68); font-size: clamp(13px, 1.2vw, 17px); font-weight: 900; letter-spacing: .16em; }
 .winner-place-1 .winner-place-label { color: #f3d37e; }
-.winner-place-name { width: 100%; margin-top: auto; color: #fff; font-size: clamp(15px, 1.8vw, 23px); font-weight: 850; line-height: 1.12; letter-spacing: -.025em; overflow-wrap: anywhere; }
-.winner-place-stat { width: 100%; padding-top: 8px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; border-top: 1px solid rgba(255,255,255,.15); }
-.winner-place-stat small { color: rgba(255,255,255,.56); font-size: 7px; font-weight: 850; letter-spacing: .12em; }
-.winner-place-stat strong { color: #fff; font-size: clamp(11px, 1.3vw, 15px); font-variant-numeric: tabular-nums; white-space: nowrap; }.winner-place-1 .winner-place-stat:first-of-type strong { color: #f3d37e; }.winner-place-stat em { color: #f3d37e; font-size: .68em; font-style: normal; }
-.winner-place-empty { margin: auto 0; color: rgba(255,255,255,.56); font-size: 11px; line-height: 1.4; }
+.winner-place-name { width: 100%; margin-top: auto; color: #fff; font-size: clamp(28px, 3vw, 44px); font-weight: 850; line-height: 1.06; letter-spacing: -.025em; overflow-wrap: anywhere; }
+.winner-place-stat { width: 100%; min-width: 0; padding-top: clamp(10px, 1.2vw, 16px); display: flex; align-items: baseline; justify-content: space-between; gap: 10px; border-top: 1px solid rgba(255,255,255,.15); }
+.winner-place-stat small { color: rgba(255,255,255,.56); font-size: clamp(11px, 1vw, 15px); font-weight: 850; letter-spacing: .12em; }
+.winner-place-stat strong { max-width: 100%; color: #fff; font-size: clamp(21px, 2.4vw, 32px); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; text-align: right; }.winner-place-1 .winner-place-stat:first-of-type strong { color: #f3d37e; }.winner-place-stat em { color: #f3d37e; font-size: .68em; font-style: normal; }
+.winner-place-empty { margin: auto 0; color: rgba(255,255,255,.56); font-size: 14px; line-height: 1.4; }
 @media (max-width: 650px) {
-  .winner-reveal-scene { padding: 16px 8vw; }
-  .winner-reveal-emblem { display: none; }
-  .winner-reveal-content h1 { margin-top: 10px; font-size: clamp(34px, 10vw, 56px); }
-  .winner-reveal-divider { margin-top: 7px; }
-  .winner-podium-grid { width: min(460px, 100%); margin-top: 12px; grid-template-columns: 1fr; gap: 7px; }
-  .winner-podium-card, .winner-place-1, .winner-place-2, .winner-place-3 { min-height: 76px; padding: 9px 11px; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 3px 9px; }
+  .winner-reveal-scene { padding: 16px 5vw; }
+  .winner-reveal-level { font-size: 14px; }
+  .winner-reveal-content h1 { margin-top: 8px; font-size: clamp(44px, 11vw, 68px); }
+  .winner-podium-grid { width: min(800px, 100%); margin-top: 14px; grid-template-columns: 1fr; gap: 8px; }
+  .winner-podium-card, .winner-place-1, .winner-place-2, .winner-place-3 { height: 120px; min-height: 0; padding: 12px; display: grid; grid-template-columns: 50px minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 6px 10px; }
   .winner-place-1, .winner-place-2, .winner-place-3 { grid-column: 1; grid-row: auto; }
-  .winner-place-number { grid-column: 1; grid-row: 1 / 3; }
-  .winner-place-label { grid-column: 2; grid-row: 1; font-size: 7px; }
-  .winner-place-name { grid-column: 2; grid-row: 2; margin: 0; font-size: clamp(13px, 3.8vw, 17px); }
-  .winner-place-stat { width: auto; min-width: 76px; padding: 0; flex-direction: column; align-items: flex-end; justify-content: center; gap: 2px; border: 0; }
+  .winner-place-number { width: 50px; height: 50px; grid-column: 1; grid-row: 1 / 3; font-size: 20px; }
+  .winner-place-label { grid-column: 2; grid-row: 1; font-size: 10px; }
+  .winner-place-name { grid-column: 2; grid-row: 2; margin: 0; font-size: clamp(17px, 4.6vw, 24px); }
+  .winner-place-stat { width: auto; min-width: 92px; padding: 0; flex-direction: column; align-items: flex-end; justify-content: center; gap: 2px; border: 0; }
   .winner-place-stat:first-of-type { grid-column: 3; grid-row: 1; }.winner-place-stat:last-of-type { grid-column: 3; grid-row: 2; }
-  .winner-place-stat small { font-size: 6px; }.winner-place-stat strong { font-size: 10px; }
+  .winner-place-stat small { font-size: 8px; }.winner-place-stat strong { font-size: 14px; }
 }
 @media (max-height: 520px) {
   .winner-reveal-scene { padding-top: 8px; padding-bottom: 8px; }
-  .winner-reveal-emblem { display: none; }.winner-reveal-content h1 { font-size: clamp(34px, 7vh, 58px); }
-  .winner-podium-grid { margin-top: 8px; }.winner-podium-card, .winner-place-1 { min-height: 150px; padding: 10px; gap: 7px; }
+  .winner-reveal-content h1 { font-size: clamp(34px, 7vh, 58px); }
+  .winner-podium-grid { margin-top: 8px; }.winner-podium-card, .winner-place-1 { height: clamp(110px, 30vh, 180px); min-height: 0; padding: clamp(12px, 2vw, 24px); gap: clamp(8px, 1.5vh, 14px); }
+}
+@media (max-height: 520px) and (max-width: 650px) {
+  .winner-podium-card, .winner-place-1, .winner-place-2, .winner-place-3 { height: 108px; padding: 10px; }
 }

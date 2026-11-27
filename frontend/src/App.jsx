@@ -71,6 +71,15 @@ function formatDisplayTime(milliseconds = 0) {
   return `${String(Math.floor(total / 60)).padStart(2, "0")}:${seconds}`;
 }
 
+function formatWinnerTime(milliseconds = 0) {
+  const total = Math.max(0, Math.floor(milliseconds));
+  const seconds = String(Math.floor(total / 1000) % 60).padStart(2, "0");
+  const minutes = String(Math.floor(total / 60_000) % 60).padStart(2, "0");
+  const hours = Math.floor(total / 3_600_000);
+  const time = hours > 0 ? `${hours}:${minutes}:${seconds}` : `${minutes}:${seconds}`;
+  return `${time}.${String(total % 1000).padStart(3, "0")}`;
+}
+
 function formatCountdownSeconds(milliseconds) {
   const seconds = Math.ceil(Math.max(0, milliseconds) / 1000);
   return seconds < 10 ? String(seconds) : String(seconds).padStart(2, "0");
@@ -655,10 +664,8 @@ function WinnerReveal({ result }) {
     <div className="winner-reveal-spark winner-spark-two" aria-hidden="true">✧</div>
     <div className="winner-reveal-spark winner-spark-three" aria-hidden="true">✦</div>
     <div className="winner-reveal-content">
-      <div className="winner-reveal-emblem"><Trophy size={34} strokeWidth={1.5} /></div>
       <p className="winner-reveal-level">{result.levelName}</p>
-      <h1>THE <em>PODIUM</em></h1>
-      <div className="winner-reveal-divider"><span /> TOP THREE <span /></div>
+      <h1>WINNERS</h1>
       <div className="winner-podium-grid">
         {[1, 2, 3].map((place) => {
           const winner = result.winners.find((item) => item.place === place);
@@ -667,8 +674,8 @@ function WinnerReveal({ result }) {
             <span className="winner-place-label">{["1ST PLACE", "2ND PLACE", "3RD PLACE"][place - 1]}</span>
             {winner ? <>
               <strong className="winner-place-name">{winner.name}</strong>
-              <div className="winner-place-stat"><small>SCORE</small><strong>{Number(winner.score).toLocaleString()} <em>PTS</em></strong></div>
-              <div className="winner-place-stat"><small>TIME</small><strong>{formatDisplayTime(winner.durationMs)}</strong></div>
+              <div className="winner-place-stat"><small>POINTS</small><strong>{Number(winner.score).toLocaleString()} <em>PTS</em></strong></div>
+              <div className="winner-place-stat"><small>TIME</small><strong>{formatWinnerTime(winner.durationMs)}</strong></div>
             </> : <span className="winner-place-empty">Awaiting a scored entry</span>}
           </article>;
         })}
